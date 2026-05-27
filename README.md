@@ -2,6 +2,9 @@
 
 A powerful, visual gallery plugin for Obsidian that transforms your vault folders into a beautiful, navigable dashboard. Organize your resources, courses, and media with custom banners and intuitive folder structures.
 
+## Preview
+![Gallery Plugin Demo](public/gif.gif)
+
 ## 🚀 Features
 
 * **Dynamic Dashboard View:** Browse your vault as a visual library with custom banners.
