@@ -1,0 +1,30 @@
+{
+    "compilerOptions": {
+        "inlineSourceMap": true,
+        "inlineSources": true,
+        "module": "ESNext",
+        "target": "ESNext",
+        "allowJs": true,
+        "noImplicitAny": true,
+        "noImplicitThis": true,
+        "noImplicitReturns": true,
+        "moduleResolution": "bundler",
+        "importHelpers": true,
+        "noUncheckedIndexedAccess": true,
+        "isolatedModules": true,
+        "strictNullChecks": true,
+        "strictBindCallApply": true,
+        "allowSyntheticDefaultImports": true,
+        "useUnknownInCatchVariables": true,
+        "skipLibCheck": true,
+        "types": ["node"],
+        "lib": [
+            "DOM",
+            "ESNext"
+        ]
+    },
+    "include": [
+        "src/**/*.ts",
+        "eslint.config.mts"
+    ]
+}
