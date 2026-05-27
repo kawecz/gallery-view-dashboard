@@ -1,6 +1,6 @@
 {
   "id": "gallery-view-dashboard",
-  "name": "Gallery View",
+  "name": "Gallery View Dashboard",
   "version": "1.0.0",
   "minAppVersion": "1.4.10",
   "description": "Transforms your vault's directory structures into a streamlined grid of card visuals with fallback banners and interactive metadata.",
