@@ -10,18 +10,15 @@ export default class GalleryViewPlugin extends Plugin {
         await this.loadSettings();
         this.addSettingTab(new GalleryViewSettingTab(this.app, this));
         
-        // Register custom view structure type blueprint
         this.registerView(
             VIEW_TYPE_GALLERY,
             (leaf: WorkspaceLeaf) => new GalleryDashboardView(leaf, this)
         );
 
-        // Add Left Ribbon Sidebar Icon
         this.addRibbonIcon("library", "Open Library Gallery", () => {
             this.activateGalleryView();
         });
 
-        // Add a Command palette shortcut alternative
         this.addCommand({
             id: "open-gallery-dashboard",
             name: "Open Gallery Dashboard Layout",
@@ -30,17 +27,13 @@ export default class GalleryViewPlugin extends Plugin {
     }
 
     async onunload() {
-        // Clear references out of workspace windows layout upon plugin disable
         this.app.workspace.detachLeavesOfType(VIEW_TYPE_GALLERY);
     }
 
-    /**
-     * Spawns or brings focus into our unified interface leaf viewport
-     */
     async activateGalleryView() {
         const { workspace } = this.app;
         const leaves = workspace.getLeavesOfType(VIEW_TYPE_GALLERY);
-        const existingLeaf = leaves[0]; // Extract first
+        const existingLeaf = leaves[0];
 
         if (existingLeaf) {
             workspace.revealLeaf(existingLeaf);
@@ -61,7 +54,6 @@ export default class GalleryViewPlugin extends Plugin {
     async saveSettings() {
         await this.saveData(this.settings);
         
-        // Refresh active layouts dynamically if window state properties change inside settings context tabs
         const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_GALLERY);
         for (const leaf of leaves) {
             if (leaf.view instanceof GalleryDashboardView) {

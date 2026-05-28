@@ -6,15 +6,16 @@
     background-color: var(--background-primary);
 }
 
-/* --- IMPROVED HEADER --- */
-.gallery-view-header {
+/* --- NAVIGATION HEADER --- */
+.gallery-view-navigation-toolbar {
     display: flex;
-    flex-wrap: wrap; 
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 20px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px 16px;
     border-bottom: 1px solid var(--background-modifier-border);
-    padding-bottom: 16px;
+    margin-bottom: 16px;
+    width: 100%;
 }
 
 .gallery-view-back-btn {
@@ -28,35 +29,41 @@
     flex-shrink: 0;
 }
 
-.gallery-view-title {
-    margin: 0;
-    font-size: 1.1em;
-    color: var(--text-title-h3);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
+.gallery-view-breadcrumb {
+    font-family: var(--font-monospace), monospace;
+    font-size: var(--font-ui-smaller, 0.85em);
+    color: var(--text-muted);
+    opacity: 0.6;
+    letter-spacing: 0.5px;
+    white-space: normal;
+    word-break: break-word;
+    width: 100%;
+    line-height: 1.4;
 }
 
-/* --- GRID ENGINE: Restored to Left-Aligned Uniform Grid --- */
+/* --- GRID ENGINE: Masonry-style Height Flexibility --- */
 .gallery-view-grid {
     display: grid;
-    /* auto-fill ensures cards stretch to fill space and align to the left */
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-auto-rows: min-content; /* Elements only occupy their natural height */
     gap: 20px;
     justify-content: start; 
+    align-items: start; /* Keeps cards from stretching vertically to match neighbors */
+    width: 100%;
+    padding: 8px 16px;
 }
 
-/* --- CARD OPTIMIZATION: Restored to stretch-to-fill --- */
+/* --- CARD ENGINE --- */
 .gallery-view-card {
-    background-color: var(--background-secondary);
+    background-color: var(--background-secondary-alt);
     border: 1px solid var(--background-modifier-border);
     border-radius: 8px;
     overflow: hidden;
     cursor: pointer;
     display: flex;
     flex-direction: column;
-    width: 100%; /* Now stretches to fill the grid cell */
+    width: 100%;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.2s ease;
 }
 
@@ -66,21 +73,26 @@
     border-color: var(--interactive-accent);
 }
 
+/* --- COMPLETELY DYNAMIC ASPECT RATIO BANNER WRAPPER --- */
 .gallery-view-card-banner-wrap {
     width: 100%;
-    height: 120px;
-    overflow: hidden;
-    background-color: var(--background-secondary-alt);
+    height: auto; /* Clears fixed sizing constraints entirely */
     position: relative;
+    overflow: hidden;
+    background-color: var(--background-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .gallery-view-banner-img {
+    display: block;
     width: 100%;
-    height: 100%;
-    object-fit: cover;
+    height: auto; /* Scales proportionally to match natural image boundaries */
     transition: transform 0.3s ease;
 }
 
+/* --- CARD TEXT INFO BLOCK --- */
 .gallery-view-card-info {
     padding: 12px;
     display: flex;
@@ -90,7 +102,7 @@
 
 .gallery-view-card-title {
     font-weight: 600;
-    font-size: 0.95em;
+    font-size: 1.1em;
     color: var(--text-normal);
     white-space: nowrap;
     overflow: hidden;
@@ -98,18 +110,20 @@
 }
 
 .gallery-view-card-meta {
-    font-size: 0.75em;
+    font-size: 0.85em;
     color: var(--text-muted);
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
+    min-height: 20px;
 }
 
 .gallery-view-property-badge {
-    background-color: var(--background-modifier-form-field);
-    border: 1px solid var(--background-modifier-border);
+    background-color: var(--background-modifier-border);
     padding: 2px 6px;
     border-radius: 4px;
+    color: var(--text-normal);
+    font-size: 0.8em;
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -126,4 +140,23 @@
     color: var(--text-muted);
     padding: 40px;
     font-style: italic;
+}
+
+/* --- MOBILE TARGETING CONTEXT --- */
+@media (max-width: 480px) {
+    .gallery-view-grid {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 8px 0;
+        gap: 24px;
+    }
+    
+    .gallery-view-card {
+        width: 100%;
+        max-width: 280px; 
+        margin: 0 auto;
+        height: auto; /* Let card adapt height cleanly to picture scaling updates */
+    }
 }

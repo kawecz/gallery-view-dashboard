@@ -23,10 +23,9 @@ export class GalleryDashboardView extends ItemView {
         return "Library Gallery";
     }
 
-    // Public method to let external modifications update the track path dynamically
     public async updateRootPath(newPath: string) {
         this.currentPath = newPath;
-        this.historyStack = []; // Reset navigation tracking history safely
+        this.historyStack = []; 
         await this.renderCanvas();
     }
 
@@ -52,24 +51,56 @@ export class GalleryDashboardView extends ItemView {
     public async renderCanvas() {
         const container = this.contentEl;
         container.empty();
-        container.addClass("gallery-view-dashboard-wrapper");
+        container.addClass("gallery-view-canvas");
 
-        // 🗺️ 1. Create Navigation Toolbar Area
+        // 🗺️ 1. Navigation Header Block
         const toolbar = container.createDiv({
             cls: "gallery-view-navigation-toolbar",
-            attr: { style: "display: flex; align-items: center; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--background-modifier-border); margin-bottom: 8px;" }
+            attr: { 
+                style: `
+                    display: flex; 
+                    flex-direction: column; 
+                    align-items: flex-start; 
+                    gap: 8px; 
+                    padding: 12px 16px; 
+                    border-bottom: 1px solid var(--background-modifier-border); 
+                    margin-bottom: 8px;
+                    width: 100%;
+                ` 
+            }
         });
 
-        // Back Arrow Button
-        const backBtn = toolbar.createEl("button", {
+        const breadcrumbPath = this.currentPath || "Root Vault";
+        toolbar.createDiv({
+            cls: "gallery-view-breadcrumb",
+            attr: { 
+                style: `
+                    font-family: var(--font-monospace), monospace;
+                    font-size: var(--font-ui-smaller, 0.85em); 
+                    color: var(--text-muted);
+                    opacity: 0.6;
+                    letter-spacing: 0.5px;
+                    white-space: normal;
+                    word-break: break-word;
+                    width: 100%;
+                    line-height: 1.4;
+                ` 
+            }
+        }).setText(`Browsing: ${breadcrumbPath}`);
+
+        const buttonRow = toolbar.createDiv({
+            attr: { style: "display: flex; width: 100%; align-items: center;" }
+        });
+
+        const backBtn = buttonRow.createEl("button", {
             text: "← Back",
-            cls: "mod-cta",
-            attr: { style: "cursor: pointer; padding: 6px 12px; font-size: 0.9em; font-weight: 500; font-family: inherit;" }
+            cls: "gallery-view-back-btn mod-cta",
+            attr: { style: "cursor: pointer; padding: 5px 12px; font-size: 0.85em; font-weight: 500; font-family: inherit; border-radius: 4px;" }
         });
 
         if (this.historyStack.length === 0) {
             backBtn.setAttribute("disabled", "true");
-            backBtn.style.opacity = "0.5";
+            backBtn.style.opacity = "0.4";
             backBtn.style.cursor = "not-allowed";
         } else {
             backBtn.addEventListener("click", async () => {
@@ -81,17 +112,9 @@ export class GalleryDashboardView extends ItemView {
             });
         }
 
-        // Current Location Breadcrumb Title Text
-        const breadcrumbPath = this.currentPath || "Root Vault";
-        toolbar.createDiv({
-            cls: "gallery-view-breadcrumb",
-            attr: { style: "font-size: 1.2em; font-weight: 500; color: var(--text-normal);" }
-        }).setText(`Browsing: ${breadcrumbPath}`);
-
         // 📦 2. Create Content Grid Container
         const grid = container.createDiv({
-            cls: "gallery-view-grid-layout",
-            attr: { style: "display: flex; flex-wrap: wrap; gap: 16px; padding: 16px; width: 100%;" }
+            cls: "gallery-view-grid"
         });
         
         let rootFolder: TAbstractFile | null = null;
@@ -106,8 +129,14 @@ export class GalleryDashboardView extends ItemView {
                 return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
             });
 
-            for (const item of sortedChildren) {
-                if (item instanceof TFolder || (item instanceof TFile && (item.extension === "md" || item.extension === "pdf"))) {
+            const validItems = sortedChildren.filter(item => item instanceof TFolder || (item instanceof TFile && (item.extension === "md" || item.extension === "pdf")));
+            if (validItems.length === 0) {
+                grid.createDiv({
+                    cls: "gallery-view-empty-msg",
+                    text: "This folder contains no library assets."
+                });
+            } else {
+                for (const item of validItems) {
                     await this.renderCard(grid, item, item instanceof TFolder);
                 }
             }
@@ -116,22 +145,15 @@ export class GalleryDashboardView extends ItemView {
 
     private async renderCard(grid: HTMLElement, item: TAbstractFile, isFolder: boolean) {
         const card = grid.createDiv({
-            cls: "gallery-view-card",
-            attr: { 
-                style: "width: 240px; display: flex; flex-direction: column; border-radius: 8px; overflow: hidden; background: var(--background-secondary-alt); border: 1px solid var(--background-modifier-border); box-shadow: 0 4px 6px rgba(0,0,0,0.05); cursor: pointer;" 
-            }
+            cls: "gallery-view-card"
         });
         
         const bannerContainer = card.createDiv({
-            cls: "gallery-view-card-banner-wrap",
-            attr: { 
-                style: "height: 140px; width: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center; background: var(--background-secondary);" 
-            }
+            cls: "gallery-view-card-banner-wrap"
         });
         
         const infoSection = card.createDiv({
-            cls: "gallery-view-card-info",
-            attr: { style: "padding: 12px; display: flex; flex-direction: column; gap: 6px;" }
+            cls: "gallery-view-card-info"
         });
 
         let usableName = item.name;
@@ -144,8 +166,7 @@ export class GalleryDashboardView extends ItemView {
         });
 
         titleRow.createDiv({
-            cls: "gallery-view-card-title",
-            attr: { style: "font-weight: 600; font-size: 1.1em; color: var(--text-normal); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-grow: 1;" }
+            cls: "gallery-view-card-title"
         }).setText(usableName);
 
         const imgFitRule = this.plugin.settings.bannerFit || "cover";
@@ -159,15 +180,14 @@ export class GalleryDashboardView extends ItemView {
             bannerContainer.createEl("img", { 
                 attr: { 
                     src: bannerUrl, 
-                    style: `object-fit: ${imgFitRule}; width: 100%; height: 100%; max-width: 100%; max-height: 100%;` 
+                    style: `object-fit: ${imgFitRule};` 
                 }, 
                 cls: "gallery-view-banner-img" 
             });
             
             const childCount = (item as TFolder).children.length;
             infoSection.createDiv({
-                cls: "gallery-view-card-meta",
-                attr: { style: "font-size: 0.85em; color: var(--text-muted);" }
+                cls: "gallery-view-card-meta"
             }).setText(`${childCount} item${childCount === 1 ? "" : "s"} inside`);
 
             card.addEventListener("click", async () => {
@@ -192,14 +212,13 @@ export class GalleryDashboardView extends ItemView {
             bannerContainer.createEl("img", { 
                 attr: { 
                     src: bannerUrl, 
-                    style: `object-fit: ${imgFitRule}; width: 100%; height: 100%; max-width: 100%; max-height: 100%;` 
+                    style: `object-fit: ${imgFitRule};` 
                 }, 
                 cls: "gallery-view-banner-img" 
             });
 
             const metaContainer = infoSection.createDiv({
-                cls: "gallery-view-card-meta",
-                attr: { style: "display: flex; flex-wrap: wrap; gap: 4px; font-size: 0.85em; min-height: 20px;" }
+                cls: "gallery-view-card-meta"
             });
 
             if (isPdf) {
@@ -211,8 +230,7 @@ export class GalleryDashboardView extends ItemView {
                 this.plugin.settings.visibleProperties.forEach(propKey => {
                     if (frontmatter[propKey] !== undefined && propKey !== "checkbox") {
                         const badge = metaContainer.createDiv({
-                            cls: "gallery-view-property-badge",
-                            attr: { style: "background: var(--background-modifier-border); padding: 2px 6px; border-radius: 4px; color: var(--text-normal); font-size: 0.8em;" }
+                            cls: "gallery-view-property-badge"
                         });
                         badge.setText(`${propKey}: ${frontmatter[propKey]}`);
                     }
