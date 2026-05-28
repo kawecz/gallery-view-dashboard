@@ -8,6 +8,7 @@ export interface FolderCardConfig {
 
 export interface GalleryViewSettings {
     rootSearchPath: string;          // The base folder to act as your "Library"
+    lastOpenPath: string;            // 💾 Tracks session history state across Obsidian application restarts
     defaultFolderBanner: string;     // Default fallback image for folder cards
     defaultFileBanner: string;       // Default fallback image for note cards
     showCheckboxes: boolean;         // Global toggle for quick toggles
@@ -18,6 +19,7 @@ export interface GalleryViewSettings {
 
 export const DEFAULT_SETTINGS: GalleryViewSettings = {
     rootSearchPath: "",
+    lastOpenPath: "",                // Initialize empty so it falls back to rootSearchPath on first load
     defaultFolderBanner: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe", 
     defaultFileBanner: "https://images.unsplash.com/photo-1579546929518-9e396f3cc809",   
     showCheckboxes: true,
