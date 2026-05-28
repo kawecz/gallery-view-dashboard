@@ -24,6 +24,20 @@ export default class GalleryViewPlugin extends Plugin {
             name: "Open Gallery Dashboard Layout",
             callback: () => this.activateGalleryView(),
         });
+
+        // 🌟 Re-sync explicitly if layout structures load out of alignment
+        this.app.workspace.onLayoutReady(async () => {
+            const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_GALLERY);
+            for (const leaf of leaves) {
+                if (leaf.view instanceof GalleryDashboardView) {
+                    // Only apply if the workspace didn't load its own serialized view path state
+                    if (!leaf.view.currentPath) {
+                        leaf.view.currentPath = this.settings.lastOpenPath || this.settings.rootSearchPath || "";
+                        await leaf.view.renderCanvas();
+                    }
+                }
+            }
+        });
     }
 
     async onunload() {

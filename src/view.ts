@@ -12,7 +12,8 @@ export class GalleryDashboardView extends ItemView {
     constructor(leaf: WorkspaceLeaf, plugin: GalleryViewPlugin) {
         super(leaf);
         this.plugin = plugin;
-        this.currentPath = this.plugin.settings.rootSearchPath || "";
+        // Fall back to root settings if no state has been serialized yet
+        this.currentPath = this.plugin.settings.lastOpenPath || this.plugin.settings.rootSearchPath || "";
     }
 
     getViewType(): string {
@@ -23,13 +24,50 @@ export class GalleryDashboardView extends ItemView {
         return "Library Gallery";
     }
 
+    /**
+     * 🌟 Obsidian Navigation State Serialization
+     * This saves the current view state into Obsidian's workspace configuration cache.
+     */
+    getState() {
+        return {
+            currentPath: this.currentPath,
+            historyStack: this.historyStack
+        };
+    }
+
+    /**
+     * 🌟 Obsidian Navigation State Restoration
+     * This triggers automatically when Obsidian reopens an existing workspace leaf pane.
+     */
+    async setState(state: any, result: any) {
+        if (state && typeof state.currentPath === "string") {
+            this.currentPath = state.currentPath;
+            this.historyStack = Array.isArray(state.historyStack) ? state.historyStack : [];
+        }
+        await this.renderCanvas();
+        await super.setState(state, result);
+    }
+
     public async updateRootPath(newPath: string) {
         this.currentPath = newPath;
         this.historyStack = []; 
+        
+        // Keep persistent data sync files in alignment
+        this.plugin.settings.lastOpenPath = newPath;
+        await this.plugin.saveSettings();
+        
+        // Notify the workspace that this view changed state
+        this.app.workspace.requestSaveLayout();
+        
         await this.renderCanvas();
     }
 
     async onOpen() {
+        // Fall back to saved global settings if the layout engine didn't restore path parameters yet
+        if (!this.currentPath) {
+            this.currentPath = this.plugin.settings.lastOpenPath || this.plugin.settings.rootSearchPath || "";
+        }
+
         await this.renderCanvas();
 
         this.metadataEventRef = this.app.metadataCache.on("changed", async (file) => {
@@ -107,6 +145,11 @@ export class GalleryDashboardView extends ItemView {
                 const previousPath = this.historyStack.pop();
                 if (previousPath !== undefined) {
                     this.currentPath = previousPath;
+                    
+                    this.plugin.settings.lastOpenPath = previousPath;
+                    await this.plugin.saveSettings();
+                    this.app.workspace.requestSaveLayout();
+                    
                     await this.renderCanvas();
                 }
             });
@@ -193,6 +236,12 @@ export class GalleryDashboardView extends ItemView {
             card.addEventListener("click", async () => {
                 this.historyStack.push(this.currentPath);
                 this.currentPath = item.path;
+                
+                // Keep file systems cached tightly
+                this.plugin.settings.lastOpenPath = item.path;
+                await this.plugin.saveSettings();
+                this.app.workspace.requestSaveLayout();
+                
                 await this.renderCanvas();
             });
 
