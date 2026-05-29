@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting, TFolder, TAbstractFile } from "obsidian";
+import { App, PluginSettingTab, Setting, TFolder, TFile, TAbstractFile } from "obsidian";
 import GalleryViewPlugin from "./main";
 import { GalleryDashboardView, VIEW_TYPE_GALLERY } from "./view";
 
@@ -187,6 +187,17 @@ export class GalleryViewSettingTab extends PluginSettingTab {
                     await this.plugin.saveSettings();
                 }));
 
+        // 📄 Added PDF Native Target settings options configuration
+        new Setting(containerEl)
+            .setName("Default PDF File Banner")
+            .setDesc("Fallback banner utilized explicitly for document and PDF asset card layers.")
+            .addText(text => text
+                .setValue(this.plugin.settings.defaultPdfBanner)
+                .onChange(async (value) => {
+                    this.plugin.settings.defaultPdfBanner = value;
+                    await this.plugin.saveSettings();
+                }));
+
         containerEl.createEl("h3", { text: "Live Library Vault Tree Structure" });
         const activeTargetRoot = this.plugin.settings.rootSearchPath || "/";
         const treeContainer = containerEl.createDiv({
@@ -250,9 +261,11 @@ export class GalleryViewSettingTab extends PluginSettingTab {
         );
 
         sortedChildren.forEach(child => {
-            if (child instanceof TFolder) {
-                const childPath = child.path;
+            const childPath = child.path;
 
+            // Render Row wrapper for folders and specific files (PDFs)
+            if (child instanceof TFolder || (child instanceof TFile && child.extension === "pdf")) {
+                const isFolder = child instanceof TFolder;
                 const rowWrapper = containerEl.createDiv({
                     attr: { style: `margin-left: ${level * 12}px; margin-top: 6px;` }
                 });
@@ -262,7 +275,7 @@ export class GalleryViewSettingTab extends PluginSettingTab {
                 });
 
                 flexRow.createSpan({ 
-                    text: "↳ 📁", 
+                    text: isFolder ? "↳ 📁" : "↳ 📄", 
                     attr: { style: "color: var(--text-muted); font-weight: bold;" } 
                 });
 
@@ -278,7 +291,7 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 
                 const input = flexRow.createEl("input", {
                     type: "text",
-                    placeholder: "Custom Banner URL...",
+                    placeholder: isFolder ? "Custom Folder Banner URL..." : "Custom PDF Banner URL...",
                     value: folderData?.bannerUrl ?? "",
                     attr: { style: "flex-grow: 1; padding: 4px 8px; font-family: inherit; font-size: var(--font-ui-small);" }
                 });
@@ -290,31 +303,33 @@ export class GalleryViewSettingTab extends PluginSettingTab {
                     }
                 });
 
-                const hasSubfolders = child.children.some(item => item instanceof TFolder);
+                if (isFolder) {
+                    const hasSubfolders = child.children.some(item => item instanceof TFolder || (item instanceof TFile && item.extension === "pdf"));
 
-                if (hasSubfolders) {
-                    const isChildExpanded = !!folderData?.showSubs;
-                    const nestedChildContainer = rowWrapper.createDiv({
-                        attr: { style: isChildExpanded ? "display: block;" : "display: none;" }
-                    });
+                    if (hasSubfolders) {
+                        const isChildExpanded = !!folderData?.showSubs;
+                        const nestedChildContainer = rowWrapper.createDiv({
+                            attr: { style: isChildExpanded ? "display: block;" : "display: none;" }
+                        });
 
-                    const toggleBtn = flexRow.createEl("button", {
-                        text: isChildExpanded ? "▲" : "▼",
-                        attr: { style: "padding: 2px 6px; cursor: pointer; font-family: inherit; font-size: var(--font-ui-small);" }
-                    });
+                        const toggleBtn = flexRow.createEl("button", {
+                            text: isChildExpanded ? "▲" : "▼",
+                            attr: { style: "padding: 2px 6px; cursor: pointer; font-family: inherit; font-size: var(--font-ui-small);" }
+                        });
 
-                    toggleBtn.addEventListener("click", async () => {
-                        if (this.plugin.settings.folderOverrides[childPath]) {
-                            const nextState = !this.plugin.settings.folderOverrides[childPath]!.showSubs;
-                            this.plugin.settings.folderOverrides[childPath]!.showSubs = nextState;
-                            await this.plugin.saveSettings();
-                            
-                            nestedChildContainer.style.display = nextState ? "block" : "none";
-                            toggleBtn.setText(nextState ? "▲" : "▼");
-                        }
-                    });
+                        toggleBtn.addEventListener("click", async () => {
+                            if (this.plugin.settings.folderOverrides[childPath]) {
+                                const nextState = !this.plugin.settings.folderOverrides[childPath]!.showSubs;
+                                this.plugin.settings.folderOverrides[childPath]!.showSubs = nextState;
+                                await this.plugin.saveSettings();
+                                
+                                nestedChildContainer.style.display = nextState ? "block" : "none";
+                                toggleBtn.setText(nextState ? "▲" : "▼");
+                            }
+                        });
 
-                    this.displayFolderTree(nestedChildContainer, childPath, level + 1);
+                        this.displayFolderTree(nestedChildContainer, childPath, level + 1);
+                    }
                 }
             }
         });
