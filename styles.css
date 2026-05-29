@@ -51,6 +51,7 @@
     align-items: start; /* Keeps cards from stretching vertically to match neighbors */
     width: 100%;
     padding: 8px 16px;
+    position: relative; /* REQUIRED: Anchor point target for drop line absolute math context */
 }
 
 /* --- CARD ENGINE --- */
@@ -64,13 +65,36 @@
     flex-direction: column;
     width: 100%;
     box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-    transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.2s ease;
+    transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.2s ease, opacity 0.15s ease;
 }
 
 .gallery-view-card:hover {
     transform: translateY(-4px);
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
     border-color: var(--interactive-accent);
+}
+
+/* --- LIVE DRAG DROP INDICATOR LINE --- */
+.gallery-view-drop-indicator {
+    position: absolute;
+    background-color: var(--interactive-accent);
+    border-radius: 4px;
+    pointer-events: none; /* Prevents the line from intercepting drag events */
+    transition: top 0.1s ease, left 0.1s ease, height 0.1s ease; /* Fluid shifting across grid slots */
+    z-index: 50;
+    width: 4px;
+}
+
+/* Accent anchor circular node on top of the insertion line */
+.gallery-view-drop-indicator::before {
+    content: "";
+    position: absolute;
+    top: -3px;
+    left: -2px;
+    width: 8px;
+    height: 8px;
+    background-color: var(--interactive-accent);
+    border-radius: 50%;
 }
 
 /* --- COMPLETELY DYNAMIC ASPECT RATIO BANNER WRAPPER --- */
