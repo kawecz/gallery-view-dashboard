@@ -14,8 +14,9 @@ export interface GalleryViewSettings {
     lastOpenPath: string;            // 💾 Tracks session history state across Obsidian application restarts
     defaultFolderBanner: string;     // Default fallback image for folder cards
     defaultFileBanner: string;       // Default fallback image for note cards
-    defaultPdfBanner: string;        // 📄 Added fallback banner specifically for PDF files
+    defaultPdfBanner: string;       // 📄 Added fallback banner specifically for PDF files
     showCheckboxes: boolean;         // Global toggle for quick toggles
+    showFolderProgress: boolean;     // 📊 Global toggle for folder graphical progress metric bars
     visibleProperties: string[];     // String list of YAML frontmatter keys to print on cards
     folderOverrides: Record<string, FolderCardConfig>; // Path-mapped customized configurations
     bannerFit: "cover" | "contain"; // Global Image fit setting
@@ -32,6 +33,7 @@ export const DEFAULT_SETTINGS: GalleryViewSettings = {
     defaultFileBanner: "https://images.unsplash.com/photo-1579546929518-9e396f3cc809",   
     defaultPdfBanner: "https://images.unsplash.com/photo-1568667256549-094345857637", // Clean default library book stacks
     showCheckboxes: true,
+    showFolderProgress: true,        // Enabled by default
     visibleProperties: ["tags", "status", "todo"],
     folderOverrides: {},
     bannerFit: "cover", // Default to standard cropping format

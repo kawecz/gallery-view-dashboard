@@ -137,8 +137,7 @@ export class GalleryViewSettingTab extends PluginSettingTab {
                     const treeRoot = containerEl.querySelector(".gallery-view-subfolder-tree-root") as HTMLElement;
                     if (treeRoot) {
                         treeRoot.empty();
-                        const activeTargetRoot = trimmedValue || "/";
-                        this.displayFolderTree(treeRoot, activeTargetRoot === "/" ? "" : activeTargetRoot, 0);
+                        this.renderTreeContainer(treeRoot);
                     }
                 }, 300);
             });
@@ -167,6 +166,16 @@ export class GalleryViewSettingTab extends PluginSettingTab {
                     await this.plugin.saveSettings();
                 }));
 
+        new Setting(containerEl)
+            .setName("Show Folder Progress Bars")
+            .setDesc("Recursively scan notes inside directories and print visual completion bars if a frontmatter 'checkbox' exists.")
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.showFolderProgress)
+                .onChange(async (value) => {
+                    this.plugin.settings.showFolderProgress = value;
+                    await this.plugin.saveSettings();
+                }));
+
         containerEl.createEl("h4", { text: "Asset Fallbacks" });
 
         new Setting(containerEl)
@@ -187,7 +196,6 @@ export class GalleryViewSettingTab extends PluginSettingTab {
                     await this.plugin.saveSettings();
                 }));
 
-        // 📄 Added PDF Native Target settings options configuration
         new Setting(containerEl)
             .setName("Default PDF File Banner")
             .setDesc("Fallback banner utilized explicitly for document and PDF asset card layers.")
@@ -199,12 +207,12 @@ export class GalleryViewSettingTab extends PluginSettingTab {
                 }));
 
         containerEl.createEl("h3", { text: "Live Library Vault Tree Structure" });
-        const activeTargetRoot = this.plugin.settings.rootSearchPath || "/";
         const treeContainer = containerEl.createDiv({
             cls: "gallery-view-subfolder-tree-root",
             attr: { style: "background: var(--background-secondary); padding: 12px; border-radius: 6px; margin-bottom: 20px;" }
         });
-        this.displayFolderTree(treeContainer, activeTargetRoot === "/" ? "" : activeTargetRoot, 0);
+        
+        this.renderTreeContainer(treeContainer);
 
         containerEl.createEl("h3", { text: "Manual Customizations Overrides" });
 
@@ -251,19 +259,32 @@ export class GalleryViewSettingTab extends PluginSettingTab {
         });
     }
 
-    private displayFolderTree(containerEl: HTMLElement, currentPath: string, level: number) {
-        const resolvedPath = currentPath === "/" ? "" : currentPath;
-        const abstractFolder = this.app.vault.getAbstractFileByPath(resolvedPath);
-        if (!(abstractFolder instanceof TFolder)) return;
+    private renderTreeContainer(containerEl: HTMLElement) {
+        const targetPath = (this.plugin.settings.rootSearchPath || "").trim();
+        const resolvedPath = (targetPath === "/" || targetPath === "") ? "" : targetPath;
+        
+        const rootFolder = resolvedPath === "" 
+            ? this.app.vault.getRoot() 
+            : this.app.vault.getAbstractFileByPath(resolvedPath);
 
-        const sortedChildren = [...abstractFolder.children].sort((a, b) => 
+        if (rootFolder instanceof TFolder) {
+            this.displayFolderTree(containerEl, rootFolder, 0);
+        } else {
+            containerEl.createDiv({
+                text: "Target directory path configuration is invalid or does not exist.",
+                attr: { style: "color: var(--text-error); font-size: var(--font-ui-small);" }
+            });
+        }
+    }
+
+    private displayFolderTree(containerEl: HTMLElement, folder: TFolder, level: number) {
+        const sortedChildren = [...folder.children].sort((a, b) => 
             a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" })
         );
 
         sortedChildren.forEach(child => {
             const childPath = child.path;
 
-            // Render Row wrapper for folders and specific files (PDFs)
             if (child instanceof TFolder || (child instanceof TFile && child.extension === "pdf")) {
                 const isFolder = child instanceof TFolder;
                 const rowWrapper = containerEl.createDiv({
@@ -328,7 +349,7 @@ export class GalleryViewSettingTab extends PluginSettingTab {
                             }
                         });
 
-                        this.displayFolderTree(nestedChildContainer, childPath, level + 1);
+                        this.displayFolderTree(nestedChildContainer, child, level + 1);
                     }
                 }
             }

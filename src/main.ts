@@ -25,12 +25,23 @@ export default class GalleryViewPlugin extends Plugin {
             callback: () => this.activateGalleryView(),
         });
 
-        // 🌟 Fix Bug: Intercept all file/folder renames and moves across paths to update data keys dynamically
+        // 🌟 Auto-Refresh Progress Bars when Note metadata changes in real-time
+        this.registerEvent(
+            this.app.metadataCache.on("changed", () => {
+                const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_GALLERY);
+                leaves.forEach(leaf => {
+                    if (leaf.view instanceof GalleryDashboardView) {
+                        leaf.view.renderCanvas();
+                    }
+                });
+            })
+        );
+
+        // Intercept all file/folder renames and moves across paths to update data keys dynamically
         this.registerEvent(
             this.app.vault.on("rename", async (file, oldPath) => {
                 let layoutChanged = false;
 
-                // 1. Update Custom Banner Configuration Paths
                 if (this.settings.folderOverrides[oldPath]) {
                     const dataConfig = this.settings.folderOverrides[oldPath];
                     dataConfig.folderPath = file.path;
@@ -39,23 +50,19 @@ export default class GalleryViewPlugin extends Plugin {
                     layoutChanged = true;
                 }
 
-                // 2. Update Sort Strategy Mappings
                 if (this.settings.folderSortMethods[oldPath]) {
                     this.settings.folderSortMethods[file.path] = this.settings.folderSortMethods[oldPath];
                     delete this.settings.folderSortMethods[oldPath];
                     layoutChanged = true;
                 }
 
-                // 3. Update Drag and Drop Item Caches
                 if (this.settings.folderManualOrders[oldPath]) {
                     this.settings.folderManualOrders[file.path] = this.settings.folderManualOrders[oldPath];
                     delete this.settings.folderManualOrders[oldPath];
                     layoutChanged = true;
                 }
 
-                // 4. Update parent items array cache if a child item was moved/renamed within manual lists
                 const oldParentPath = oldPath.substring(0, oldPath.lastIndexOf("/")) || "";
-                const newParentPath = file.path.substring(0, file.path.lastIndexOf("/")) || "";
                 const oldName = oldPath.substring(oldPath.lastIndexOf("/") + 1);
 
                 if (this.settings.folderManualOrders[oldParentPath]) {
@@ -70,7 +77,6 @@ export default class GalleryViewPlugin extends Plugin {
             })
         );
 
-        // 🌟 Re-sync explicitly if layout structures load out of alignment
         this.app.workspace.onLayoutReady(async () => {
             const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_GALLERY);
             for (const leaf of leaves) {

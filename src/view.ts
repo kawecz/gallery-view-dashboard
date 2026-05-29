@@ -291,29 +291,19 @@ export class GalleryDashboardView extends ItemView {
                     savedOrder = validItems.map(item => item.name);
                     this.plugin.settings.folderManualOrders[activeMethodKey] = savedOrder;
                     await this.plugin.saveSettings();
-                } else if (currentSortMethod === "manual") {
-                                let savedOrder = this.plugin.settings.folderManualOrders[activeMethodKey];
-                                
-                                // 💡 If no manual order exists yet, initialize it using Alphabetical as the baseline blueprint!
-                                if (!savedOrder || !Array.isArray(savedOrder)) {
-                                    validItems.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
-                                    savedOrder = validItems.map(item => item.name);
-                                    this.plugin.settings.folderManualOrders[activeMethodKey] = savedOrder;
-                                    await this.plugin.saveSettings();
-                                }
-                
-                                // Create a guaranteed non-undefined reference for the inner callback closure
-                                const finalOrder: string[] = savedOrder;
-                
-                                validItems.sort((a, b) => {
-                                    const idxA = finalOrder.indexOf(a.name);
-                                    const idxB = finalOrder.indexOf(b.name);
-                                    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-                                    if (idxA !== -1) return -1;
-                                    if (idxB !== -1) return 1;
-                                    return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
-                                });
-                            }
+                }
+
+                // Create a guaranteed non-undefined reference for the inner callback closure
+                const finalOrder: string[] = savedOrder;
+
+                validItems.sort((a, b) => {
+                    const idxA = finalOrder.indexOf(a.name);
+                    const idxB = finalOrder.indexOf(b.name);
+                    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                    if (idxA !== -1) return -1;
+                    if (idxB !== -1) return 1;
+                    return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+                });
             }
 
             if (validItems.length === 0) {
@@ -452,6 +442,30 @@ export class GalleryDashboardView extends ItemView {
             const childCount = (item as TFolder).children.length;
             infoSection.createDiv({ cls: "gallery-view-card-meta" }).setText(`${childCount} item${childCount === 1 ? "" : "s"} inside`);
 
+            // 📊 INJECTED OPTIONAL RECURSIVE PROGRESS BAR
+            if (this.plugin.settings.showFolderProgress) {
+                const metrics = this.getFolderProgressMetrics(item as TFolder);
+                if (metrics !== null) {
+                    const progressContainer = infoSection.createDiv({
+                        attr: { style: "width: 100%; display: flex; flex-direction: column; gap: 4px; margin-top: 8px;" }
+                    });
+
+                    const labelRow = progressContainer.createDiv({
+                        attr: { style: "display: flex; justify-content: space-between; font-size: 0.75em; color: var(--text-muted);" }
+                    });
+                    labelRow.createDiv().setText(`Progress: ${metrics.completed}/${metrics.total}`);
+                    labelRow.createDiv().setText(`${metrics.percent}%`);
+
+                    const barTrack = progressContainer.createDiv({
+                        attr: { style: "width: 100%; background: var(--background-modifier-border); border-radius: 4px; height: 5px; overflow: hidden;" }
+                    });
+
+                    barTrack.createDiv({
+                        attr: { style: `width: ${metrics.percent}%; background: var(--interactive-accent); height: 100%; border-radius: 4px; transition: width 0.25s ease-in-out;` }
+                    });
+                }
+            }
+
             card.addEventListener("click", async () => {
                 this.historyStack.push(this.currentPath);
                 this.currentPath = item.path;
@@ -539,5 +553,40 @@ export class GalleryDashboardView extends ItemView {
         this.contentEl.querySelectorAll(".gallery-view-card").forEach(el => {
             (el as HTMLElement).style.opacity = "1";
         });
+    }
+
+    // 📊 INJECTED METRIC COMPUTATION FUNCTION
+    private getFolderProgressMetrics(folder: TFolder): { total: number; completed: number; percent: number } | null {
+        let totalCheckboxes = 0;
+        let completedCheckboxes = 0;
+
+        const scan = (f: TFolder) => {
+            for (const child of f.children) {
+                if (child instanceof TFile && child.extension === "md") {
+                    const cache = this.app.metadataCache.getFileCache(child);
+                    const frontmatter = cache?.frontmatter;
+                    
+                    if (frontmatter) {
+                        const targetKey = Object.keys(frontmatter).find(k => k.toLowerCase() === "checkbox");
+                        if (targetKey !== undefined && frontmatter[targetKey] !== undefined) {
+                            totalCheckboxes++;
+                            const value = frontmatter[targetKey];
+                            const isCompleted = value === true || String(value).toLowerCase() === "true";
+                            if (isCompleted) {
+                                completedCheckboxes++;
+                            }
+                        }
+                    }
+                } else if (child instanceof TFolder) {
+                    scan(child);
+                }
+            }
+        };
+
+        scan(folder);
+        if (totalCheckboxes === 0) return null;
+
+        const percent = Math.round((completedCheckboxes / totalCheckboxes) * 100);
+        return { total: totalCheckboxes, completed: completedCheckboxes, percent };
     }
 }
