@@ -176,7 +176,18 @@ export class GalleryViewSettingTab extends PluginSettingTab {
                     await this.plugin.saveSettings();
                 }));
 
-        containerEl.createEl("h4", { text: "Asset Fallbacks" });
+        // Newly added setting block for initialization preferences
+        new Setting(containerEl)
+            .setName("Add Core Properties on Note Creation")
+            .setDesc("Automatically inject frontmatter attributes (e.g., created date properties) to newly generated vault items.")
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.addPropertiesOnCreate)
+                .onChange(async (value) => {
+                    this.plugin.settings.addPropertiesOnCreate = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        containerEl.createEl("h3", { text: "Asset Fallbacks" });
 
         new Setting(containerEl)
             .setName("Default Folder Banner")

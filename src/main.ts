@@ -1,4 +1,4 @@
-import { Plugin, WorkspaceLeaf, TFolder } from "obsidian";
+import { Plugin, WorkspaceLeaf} from "obsidian";
 import { GalleryDashboardView, VIEW_TYPE_GALLERY } from "./view";
 import { GalleryViewSettings, DEFAULT_SETTINGS } from "./types";
 import { GalleryViewSettingTab } from "./settings";
@@ -25,7 +25,6 @@ export default class GalleryViewPlugin extends Plugin {
             callback: () => this.activateGalleryView(),
         });
 
-        // 🌟 Auto-Refresh Progress Bars when Note metadata changes in real-time
         this.registerEvent(
             this.app.metadataCache.on("changed", () => {
                 const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_GALLERY);
@@ -37,7 +36,6 @@ export default class GalleryViewPlugin extends Plugin {
             })
         );
 
-        // Intercept all file/folder renames and moves across paths to update data keys dynamically
         this.registerEvent(
             this.app.vault.on("rename", async (file, oldPath) => {
                 let layoutChanged = false;
@@ -59,6 +57,13 @@ export default class GalleryViewPlugin extends Plugin {
                 if (this.settings.folderManualOrders[oldPath]) {
                     this.settings.folderManualOrders[file.path] = this.settings.folderManualOrders[oldPath];
                     delete this.settings.folderManualOrders[oldPath];
+                    layoutChanged = true;
+                }
+
+                const settingsAny = this.settings as any;
+                if (settingsAny.folderCardSizes && settingsAny.folderCardSizes[oldPath]) {
+                    settingsAny.folderCardSizes[file.path] = settingsAny.folderCardSizes[oldPath];
+                    delete settingsAny.folderCardSizes[oldPath];
                     layoutChanged = true;
                 }
 
@@ -103,16 +108,17 @@ export default class GalleryViewPlugin extends Plugin {
             workspace.revealLeaf(existingLeaf);
         } else {
             const leaf = workspace.getLeaf(false);
-            await leaf.setViewState({
-                type: VIEW_TYPE_GALLERY,
-                active: true,
-            });
+            await leaf.setViewState({ type: VIEW_TYPE_GALLERY, active: true });
             workspace.revealLeaf(leaf);
         }
     }
 
     async loadSettings() {
         this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+        const settingsAny = this.settings as any;
+        if (!settingsAny.folderCardSizes) {
+            settingsAny.folderCardSizes = {};
+        }
     }
 
     async saveSettings() {
