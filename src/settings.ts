@@ -55,9 +55,18 @@ class FolderSuggest {
         if (!this.suggestionEl) {
             this.suggestionEl = window.activeDocument.body.createDiv({ cls: "suggestion-container" });
             const rect = this.inputEl.getBoundingClientRect();
-            this.suggestionEl.setAttrs({
-                style: `position: absolute; top: ${rect.bottom + window.scrollY}px; left: ${rect.left + window.scrollX}px; width: ${rect.width}px; max-height: 240px; overflow-y: auto; z-index: var(--layer-menu); background-color: var(--background-secondary); border: 1px solid var(--border-color); border-radius: 6px; box-shadow: var(--shadow-l); padding: 4px;`
-            });
+            this.suggestionEl.style.position = "absolute";
+            this.suggestionEl.style.top = `${rect.bottom + window.scrollY}px`;
+            this.suggestionEl.style.left = `${rect.left + window.scrollX}px`;
+            this.suggestionEl.style.width = `${rect.width}px`;
+            this.suggestionEl.style.maxHeight = "240px";
+            this.suggestionEl.style.overflowY = "auto";
+            this.suggestionEl.style.zIndex = "var(--layer-menu)";
+            this.suggestionEl.style.backgroundColor = "var(--background-secondary)";
+            this.suggestionEl.style.border = "1px solid var(--border-color)";
+            this.suggestionEl.style.borderRadius = "6px";
+            this.suggestionEl.style.boxShadow = "var(--shadow-l)";
+            this.suggestionEl.style.padding = "4px";
         } else {
             this.suggestionEl.empty();
         }
@@ -128,17 +137,19 @@ export class GalleryViewSettingTab extends PluginSettingTab {
                     window.clearTimeout(this.debounceTimeout);
                 }
 
-                this.debounceTimeout = window.setTimeout(async () => {
-                    const trimmedValue = targetValue.trim();
-                    this.plugin.settings.rootSearchPath = trimmedValue;
-                    await this.plugin.saveSettings();
-                    this.broadcastPathChange(trimmedValue);
-                    
-                    const treeRoot = containerEl.querySelector(".gallery-view-subfolder-tree-root") as HTMLElement;
-                    if (treeRoot) {
-                        treeRoot.empty();
-                        this.renderTreeContainer(treeRoot);
-                    }
+                this.debounceTimeout = window.setTimeout(() => {
+                    void (async () => {
+                        const trimmedValue = targetValue.trim();
+                        this.plugin.settings.rootSearchPath = trimmedValue;
+                        await this.plugin.saveSettings();
+                        this.broadcastPathChange(trimmedValue);
+                        
+                        const treeRoot = containerEl.querySelector(".gallery-view-subfolder-tree-root") as HTMLElement;
+                        if (treeRoot) {
+                            treeRoot.empty();
+                            this.renderTreeContainer(treeRoot);
+                        }
+                    })();
                 }, 300);
             });
 
@@ -254,21 +265,25 @@ export class GalleryViewSettingTab extends PluginSettingTab {
                     await this.plugin.saveSettings(); 
                 })
             );
-            rowSetting.addButton(btn => btn.setButtonText("❌").onClick(async () => {
-                delete this.plugin.settings.folderOverrides[folderPath];
-                await this.plugin.saveSettings();
-                this.display();
+            rowSetting.addButton(btn => btn.setButtonText("❌").onClick(() => {
+                void (async () => {
+                    delete this.plugin.settings.folderOverrides[folderPath];
+                    await this.plugin.saveSettings();
+                    this.display();
+                })();
             }));
         });
 
         const btnContainer = containerEl.createDiv();
         const addBtn = btnContainer.createEl("button", { text: "+ Add Manual Override", cls: "mod-cta" });
-        addBtn.addEventListener("click", async () => {
-            this.plugin.settings.folderOverrides["new-folder-path-" + Date.now()] = { 
-                folderPath: "", bannerUrl: "", showSubs: false, isManual: true 
-            };
-            await this.plugin.saveSettings();
-            this.display();
+        addBtn.addEventListener("click", () => {
+            void (async () => {
+                this.plugin.settings.folderOverrides["new-folder-path-" + Date.now()] = { 
+                    folderPath: "", bannerUrl: "", showSubs: false, isManual: true 
+                };
+                await this.plugin.saveSettings();
+                this.display();
+            })();
         });
     }
 
@@ -329,11 +344,13 @@ export class GalleryViewSettingTab extends PluginSettingTab {
                     attr: { style: "flex-grow: 1; padding: 4px 8px; font-family: inherit; font-size: var(--font-ui-small);" }
                 });
 
-                input.addEventListener("input", async (e) => {
-                    if (this.plugin.settings.folderOverrides[childPath]) {
-                        this.plugin.settings.folderOverrides[childPath]!.bannerUrl = (e.target as HTMLInputElement).value;
-                        await this.plugin.saveSettings();
-                    }
+                input.addEventListener("input", () => {
+                    void (async () => {
+                        if (this.plugin.settings.folderOverrides[childPath]) {
+                            this.plugin.settings.folderOverrides[childPath]!.bannerUrl = input.value;
+                            await this.plugin.saveSettings();
+                        }
+                    })();
                 });
 
                 if (isFolder) {
@@ -350,15 +367,17 @@ export class GalleryViewSettingTab extends PluginSettingTab {
                             attr: { style: "padding: 2px 6px; cursor: pointer; font-family: inherit; font-size: var(--font-ui-small);" }
                         });
 
-                        toggleBtn.addEventListener("click", async () => {
-                            if (this.plugin.settings.folderOverrides[childPath]) {
-                                const nextState = !this.plugin.settings.folderOverrides[childPath]!.showSubs;
-                                this.plugin.settings.folderOverrides[childPath]!.showSubs = nextState;
-                                await this.plugin.saveSettings();
-                                
-                                nestedChildContainer.style.display = nextState ? "block" : "none";
-                                toggleBtn.setText(nextState ? "▲" : "▼");
-                            }
+                        toggleBtn.addEventListener("click", () => {
+                            void (async () => {
+                                if (this.plugin.settings.folderOverrides[childPath]) {
+                                    const nextState = !this.plugin.settings.folderOverrides[childPath]!.showSubs;
+                                    this.plugin.settings.folderOverrides[childPath]!.showSubs = nextState;
+                                    await this.plugin.saveSettings();
+                                    
+                                    nestedChildContainer.style.display = nextState ? "block" : "none";
+                                    toggleBtn.setText(nextState ? "▲" : "▼");
+                                }
+                            })();
                         });
 
                         this.displayFolderTree(nestedChildContainer, child, level + 1);

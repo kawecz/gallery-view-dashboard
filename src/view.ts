@@ -5,7 +5,7 @@ import { SortMethod } from "./types";
 export const VIEW_TYPE_GALLERY = "gallery-view-dashboard";
 
 function extractYouTubeVideoId(url: string): string | null {
-    const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/;
+    const regex = /(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{11})/;
     const match = url.match(regex);
     return (match && match[1]) ? match[1] : null;
 }
@@ -54,7 +54,7 @@ class RenameModal extends Modal {
         contentEl.createEl("h3", { text: `Rename: ${this.item.name}`, attr: { style: "margin-top: 0;" } });
         
         let currentName = this.item instanceof TFile ? this.item.basename : this.item.name;
-        let ext = this.item instanceof TFile ? `.${this.item.extension}` : "";
+        const ext = this.item instanceof TFile ? `.${this.item.extension}` : "";
         
         new Setting(contentEl)
             .setName("New Name")
@@ -67,18 +67,20 @@ class RenameModal extends Modal {
         const confirmBtn = footerBtnRow.createEl("button", { text: "Rename", cls: "mod-cta" });
         
         cancelBtn.addEventListener("click", () => this.close());
-        confirmBtn.addEventListener("click", async () => {
-            if (!currentName) return;
-            const parentPath = this.item.parent ? this.item.parent.path : "";
-            const trailingSlash = (parentPath === "/" || !parentPath) ? "" : "/";
-            const newPath = `${parentPath}${trailingSlash}${currentName}${ext}`;
-            try {
-                await this.app.fileManager.renameFile(this.item, newPath);
-                this.onConfirm();
-            } catch (err) {
-                console.error("Failed to rename item:", err);
-            }
-            this.close();
+        confirmBtn.addEventListener("click", () => {
+            void (async () => {
+                if (!currentName) return;
+                const parentPath = this.item.parent ? this.item.parent.path : "";
+                const trailingSlash = (parentPath === "/" || !parentPath) ? "" : "/";
+                const newPath = `${parentPath}${trailingSlash}${currentName}${ext}`;
+                try {
+                    await this.app.fileManager.renameFile(this.item, newPath);
+                    this.onConfirm();
+                } catch (err) {
+                    console.error("Failed to rename item:", err);
+                }
+                this.close();
+            })();
         });
     }
     onClose() { this.contentEl.empty(); }
@@ -118,7 +120,7 @@ class YouTubeConfirmModal extends Modal {
     constructor(app: App, videoUrl: string, videoId: string, defaultTitle: string, onConfirm: (finalTitle: string, thumbnailUrl: string) => void) {
         super(app);
         this.videoId = videoId;
-        this.defaultTitle = defaultTitle.replace(/[\\\/ :?*\"<>|]/g, " "); 
+        this.defaultTitle = defaultTitle.replace(/[\\/:?*"<>|]/g, " ");
         this.onConfirm = onConfirm;
     }
 
@@ -129,7 +131,7 @@ class YouTubeConfirmModal extends Modal {
         const titleRow = contentEl.createDiv({ attr: { style: "display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px;" } });
         const titleInput = titleRow.createEl("input", { type: "text", value: this.defaultTitle, attr: { style: "width: 100%; padding: 6px;" } });
         const previewContainer = contentEl.createDiv({ attr: { style: "position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 6px; overflow: hidden; margin-bottom: 20px;" } });
-        const thumbnailUrl = `https://img.youtube.com/vi/${this.videoId}/hqdefault.jpg`;
+        const thumbnailUrl = `https://img.youtube.com/vi/${this.videoId}/maxresdefault.jpg`;
         previewContainer.createEl("img", { attr: { src: thumbnailUrl, style: "width: 100%; height: 100%; object-fit: cover;" } });
 
         const footerBtnRow = contentEl.createDiv({ attr: { style: "display: flex; justify-content: flex-end; gap: 12px;" } });
@@ -166,24 +168,25 @@ export class GalleryDashboardView extends ItemView {
     getViewType(): string { return VIEW_TYPE_GALLERY; }
     getDisplayText(): string { return "Library Gallery"; }
 
-    getState() {
+    getState(): Record<string, unknown> {
         return { currentPath: this.currentPath, historyStack: this.historyStack };
     }
 
-    async setState(state: any, result: any) {
-        if (state && typeof state.currentPath === "string") {
-            this.currentPath = state.currentPath;
-            this.historyStack = Array.isArray(state.historyStack) ? state.historyStack : [];
+    async setState(state: unknown, result: unknown) {
+        const typedState = state as Record<string, unknown> | null;
+        if (typedState && typeof typedState.currentPath === "string") {
+            this.currentPath = typedState.currentPath;
+            this.historyStack = Array.isArray(typedState.historyStack) ? typedState.historyStack as string[] : [];
         } else {
             this.rebuildHistoryStack();
         }
         await this.renderCanvas();
-        await super.setState(state, result);
+        await super.setState(state, result as any);
     }
 
     private getActiveFolderSize(): number {
         const activeKey = this.currentPath || "root";
-        const settings = this.plugin.settings as any;
+        const settings = this.plugin.settings;
         if (!settings.folderCardSizes) {
             settings.folderCardSizes = {};
         }
@@ -226,10 +229,12 @@ export class GalleryDashboardView extends ItemView {
         this.rebuildHistoryStack();
         await this.renderCanvas();
 
-        this.metadataEventRef = this.app.metadataCache.on("changed", async (file) => {
-            if (file instanceof TFile && file.parent?.path === (this.currentPath || "/")) {
-                await this.renderCanvas();
-            }
+        this.metadataEventRef = this.app.metadataCache.on("changed", (file) => {
+            void (async () => {
+                if (file instanceof TFile && file.parent?.path === (this.currentPath || "/")) {
+                    await this.renderCanvas();
+                }
+            })();
         });
         this.plugin.registerEvent(this.metadataEventRef);
     }
@@ -243,7 +248,7 @@ export class GalleryDashboardView extends ItemView {
     }
 
     private generateUniquePath(baseName: string): string {
-        let name = baseName || "Untitled Note";
+        const name = baseName || "Untitled Note";
         let targetPath = this.currentPath ? `${this.currentPath}/${name}.md` : `${name}.md`;
         let counter = 1;
         
@@ -298,8 +303,10 @@ export class GalleryDashboardView extends ItemView {
     private async getYouTubeTitle(url: string): Promise<string | null> {
         try {
             const res = await requestUrl({ url: `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json` });
-            if (res.status === 200 && res.json) return res.json.title;
-        } catch {}
+            if (res.status === 200 && res.json) return res.json.title as string;
+        } catch {
+            // Intentionally empty - return null on failure
+        }
         return null;
     }
 
@@ -310,8 +317,8 @@ export class GalleryDashboardView extends ItemView {
         container.addClass("gallery-view-canvas");
 
         const styleId = "gallery-view-fluid-responsive-styles";
-        if (!document.getElementById(styleId)) {
-            const styleEl = document.createElement("style");
+        if (!window.activeDocument.getElementById(styleId)) {
+            const styleEl = window.activeDocument.createElement("style");
             styleEl.id = styleId;
             styleEl.textContent = `
                 .gallery-view-navigation-toolbar {
@@ -382,7 +389,7 @@ export class GalleryDashboardView extends ItemView {
                     }
                 }
             `;
-            document.head.appendChild(styleEl);
+            window.activeDocument.head.appendChild(styleEl);
         }
 
         const activeSize = this.getActiveFolderSize();
@@ -406,15 +413,17 @@ export class GalleryDashboardView extends ItemView {
             backBtn.style.opacity = "0.4";
             backBtn.style.cursor = "not-allowed";
         } else {
-            backBtn.addEventListener("click", async () => {
-                const previousPath = this.historyStack.pop();
-                if (previousPath !== undefined) {
-                    this.currentPath = previousPath;
-                    this.plugin.settings.lastOpenPath = previousPath;
-                    await this.plugin.saveSettings();
-                    this.app.workspace.requestSaveLayout();
-                    await this.renderCanvas();
-                }
+            backBtn.addEventListener("click", () => {
+                void (async () => {
+                    const previousPath = this.historyStack.pop();
+                    if (previousPath !== undefined) {
+                        this.currentPath = previousPath;
+                        this.plugin.settings.lastOpenPath = previousPath;
+                        await this.plugin.saveSettings();
+                        this.app.workspace.requestSaveLayout();
+                        await this.renderCanvas();
+                    }
+                })();
             });
         }
 
@@ -432,9 +441,11 @@ export class GalleryDashboardView extends ItemView {
             value: this.searchQuery,
             attr: { style: "width: 100%; max-width: 220px; padding: 4px 8px; font-size: 0.85em;" }
         });
-        searchInput.addEventListener("input", async (e) => {
-            this.searchQuery = (e.target as HTMLInputElement).value.toLowerCase();
-            await this.renderItemsGrid(grid);
+        searchInput.addEventListener("input", (e) => {
+            void (async () => {
+                this.searchQuery = (e.target as HTMLInputElement).value.toLowerCase();
+                await this.renderItemsGrid(grid);
+            })();
         });
 
         const actionGroupWrapper = centerGroup.createDiv({ attr: { style: "position: relative;" } });
@@ -452,18 +463,20 @@ export class GalleryDashboardView extends ItemView {
         const createNoteOpt = popoverMenuEl.createDiv({ text: "📝 New Note", attr: { style: "padding: 6px 10px; cursor: pointer; font-size: var(--font-ui-small);" } });
         createNoteOpt.addEventListener("mousedown", (e: MouseEvent) => {
             e.preventDefault(); e.stopPropagation(); this.isAddMenuOpen = false; popoverMenuEl.style.display = "none";
-            new CreateNoteModal(this.app, async (name) => {
-                const uniquePath = this.generateUniquePath(name);
-                
-                let fileContents = "";
-                if (this.plugin.settings.addPropertiesOnCreate) {
-                    fileContents = `---\ncreated: ${new Date().toISOString().split('T')[0]}\n---\n\n`;
-                } else {
-                    fileContents = `\n`;
-                }
-                
-                await this.app.vault.create(uniquePath, fileContents);
-                await this.renderCanvas();
+            new CreateNoteModal(this.app, (name) => {
+                void (async () => {
+                    const uniquePath = this.generateUniquePath(name);
+                    
+                    let fileContents = "";
+                    if (this.plugin.settings.addPropertiesOnCreate) {
+                        fileContents = `---\ncreated: ${new Date().toISOString().split('T')[0]}\n---\n\n`;
+                    } else {
+                        fileContents = `\n`;
+                    }
+                    
+                    await this.app.vault.create(uniquePath, fileContents);
+                    await this.renderCanvas();
+                })();
             }).open();
         });
 
@@ -473,22 +486,24 @@ export class GalleryDashboardView extends ItemView {
             new YouTubeUrlPromptModal(this.app, (url) => {
                 const vid = extractYouTubeVideoId(url);
                 if (!vid) return;
-                this.getYouTubeTitle(url).then((title) => {
+                void this.getYouTubeTitle(url).then((title) => {
                     const finalT = title || "YouTube " + Date.now();
-                    new YouTubeConfirmModal(this.app, url, vid, finalT, async (fTitle, thumb) => {
-                        const uniquePath = this.generateUniquePath(fTitle);
-                        
-                        const iframeEmbed = `<iframe title="${fTitle.replace(/"/g, '&quot;')}" src="https://www.youtube.com/embed/${vid}?feature=oembed" height="113" width="200" allowfullscreen="" allow="fullscreen" style="aspect-ratio: 1.76991 / 1; width: 100%; height: 100%;"></iframe>`;
-                        
-                        let fileContents = "";
-                        if (this.plugin.settings.addPropertiesOnCreate) {
-                            fileContents = `---\nbanner: "${thumb}"\ncreated: ${new Date().toISOString().split('T')[0]}\n---\n\n${iframeEmbed}\n`;
-                        } else {
-                            fileContents = `---\nbanner: "${thumb}"\n---\n\n${iframeEmbed}\n`;
-                        }
-                        
-                        await this.app.vault.create(uniquePath, fileContents);
-                        await this.renderCanvas();
+                    new YouTubeConfirmModal(this.app, url, vid, finalT, (fTitle, thumb) => {
+                        void (async () => {
+                            const uniquePath = this.generateUniquePath(fTitle);
+                            
+                            const iframeEmbed = `<iframe title="${fTitle.replace(/"/g, '&quot;')}" src="https://www.youtube.com/embed/${vid}?feature=oembed" height="113" width="200" allowfullscreen="" allow="fullscreen" style="aspect-ratio: 1.76991 / 1; width: 100%; height: 100%;"></iframe>`;
+                            
+                            let fileContents = "";
+                            if (this.plugin.settings.addPropertiesOnCreate) {
+                                fileContents = `---\nbanner: "${thumb}"\ncreated: ${new Date().toISOString().split('T')[0]}\n---\n\n${iframeEmbed}\n`;
+                            } else {
+                                fileContents = `---\nbanner: "${thumb}"\n---\n\n${iframeEmbed}\n`;
+                            }
+                            
+                            await this.app.vault.create(uniquePath, fileContents);
+                            await this.renderCanvas();
+                        })();
                     }).open();
                 });
             }).open();
@@ -512,10 +527,12 @@ export class GalleryDashboardView extends ItemView {
             const opt = sortSelect.createEl("option", { text: m.label, value: m.value });
             if (m.value === currentSortMethod) opt.selected = true;
         });
-        sortSelect.addEventListener("change", async () => {
-            this.plugin.settings.folderSortMethods[activeMethodKey] = sortSelect.value as SortMethod;
-            await this.plugin.saveSettings();
-            await this.renderCanvas();
+        sortSelect.addEventListener("change", () => {
+            void (async () => {
+                this.plugin.settings.folderSortMethods[activeMethodKey] = sortSelect.value as SortMethod;
+                await this.plugin.saveSettings();
+                await this.renderCanvas();
+            })();
         });
 
         if (currentSortMethod === "manual") {
@@ -527,10 +544,12 @@ export class GalleryDashboardView extends ItemView {
                 }
             });
             setIcon(lockBtn, this.isDragLocked ? "lock" : "unlock");
-            lockBtn.addEventListener("click", async (e) => {
-                e.stopPropagation();
-                this.isDragLocked = !this.isDragLocked;
-                await this.renderCanvas();
+            lockBtn.addEventListener("click", (e) => {
+                void (async () => {
+                    e.stopPropagation();
+                    this.isDragLocked = !this.isDragLocked;
+                    await this.renderCanvas();
+                })();
             });
         }
 
@@ -546,12 +565,14 @@ export class GalleryDashboardView extends ItemView {
             grid.style.setProperty('--card-custom-size', `${val}px`);
         });
 
-        sizeSlider.addEventListener("change", async (e) => {
-            const val = parseInt((e.target as HTMLInputElement).value, 10);
-            const settings = this.plugin.settings as any;
-            if (!settings.folderCardSizes) settings.folderCardSizes = {};
-            settings.folderCardSizes[activeMethodKey] = val;
-            await this.plugin.saveSettings();
+        sizeSlider.addEventListener("change", (e) => {
+            void (async () => {
+                const val = parseInt((e.target as HTMLInputElement).value, 10);
+                const settings = this.plugin.settings;
+                if (!settings.folderCardSizes) settings.folderCardSizes = {};
+                settings.folderCardSizes[activeMethodKey] = val;
+                await this.plugin.saveSettings();
+            })();
         });
 
         grid.addEventListener("dragleave", (e: DragEvent) => {
@@ -572,7 +593,7 @@ export class GalleryDashboardView extends ItemView {
         const activeMethodKey = this.currentPath || "root";
         const currentSortMethod = this.plugin.settings.folderSortMethods[activeMethodKey] || "alphabetical";
 
-        let rootFolder = this.currentPath.trim() === "" ? this.app.vault.getRoot() : this.app.vault.getAbstractFileByPath(this.currentPath);
+        let rootFolder: TAbstractFile | null = this.currentPath.trim() === "" ? this.app.vault.getRoot() : this.app.vault.getAbstractFileByPath(this.currentPath);
 
         if (rootFolder instanceof TFolder) {
             let validItems = rootFolder.children.filter(item => 
@@ -589,7 +610,7 @@ export class GalleryDashboardView extends ItemView {
                 validItems.sort((a, b) => {
                     const tagA = a instanceof TFile ? (this.app.metadataCache.getFileCache(a)?.frontmatter?.tags?.[0] || "") : "";
                     const tagB = b instanceof TFile ? (this.app.metadataCache.getFileCache(b)?.frontmatter?.tags?.[0] || "") : "";
-                    return tagA.localeCompare(tagB, undefined, { sensitivity: 'base' }) || a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+                    return (tagA as string).localeCompare(tagB as string, undefined, { sensitivity: 'base' }) || a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
                 });
             } else if (currentSortMethod === "manual") {
                 let savedOrder = this.plugin.settings.folderManualOrders[activeMethodKey];
@@ -621,8 +642,8 @@ export class GalleryDashboardView extends ItemView {
     }
 
     private async renderCard(grid: HTMLElement, item: TAbstractFile, isFolder: boolean, isManualSort: boolean) {
-        const card = grid.createDiv({ cls: "gallery-view-card" });
-        (card as any).itemName = item.name;
+        const card = grid.createDiv({ cls: "gallery-view-card" }) as HTMLElement & { itemName?: string };
+        card.itemName = item.name;
         
         if (isManualSort && !this.isDragLocked) {
             card.setAttribute("draggable", "true");
@@ -669,30 +690,32 @@ export class GalleryDashboardView extends ItemView {
                 this.indicatorEl.style.display = "block";
             });
 
-            card.addEventListener("drop", async (e) => {
-                e.preventDefault();
-                const sourceName = this.draggedItemPath || (e.dataTransfer ? e.dataTransfer.getData("text/plain") : null);
-                const targetName = this.currentTargetName;
+            card.addEventListener("drop", (e) => {
+                void (async () => {
+                    e.preventDefault();
+                    const sourceName = this.draggedItemPath || (e.dataTransfer ? e.dataTransfer.getData("text/plain") : null);
+                    const targetName = this.currentTargetName;
 
-                this.cleanupDragIndicators();
-                if (!sourceName || !targetName || sourceName === targetName) return;
+                    this.cleanupDragIndicators();
+                    if (!sourceName || !targetName || sourceName === targetName) return;
 
-                const activeMethodKey = this.currentPath || "root";
-                let itemsList = Array.from(grid.children).map(el => (el as any).itemName).filter(Boolean) as string[];
+                    const activeMethodKey = this.currentPath || "root";
+                    const itemsList = Array.from(grid.children).map(el => (el as HTMLElement & { itemName?: string }).itemName).filter(Boolean) as string[];
 
-                const currentSavedOrder = this.plugin.settings.folderManualOrders[activeMethodKey] || [...itemsList];
-                const sourceIndex = currentSavedOrder.indexOf(sourceName);
-                if (sourceIndex !== -1) currentSavedOrder.splice(sourceIndex, 1);
+                    const currentSavedOrder = this.plugin.settings.folderManualOrders[activeMethodKey] || [...itemsList];
+                    const sourceIndex = currentSavedOrder.indexOf(sourceName);
+                    if (sourceIndex !== -1) currentSavedOrder.splice(sourceIndex, 1);
 
-                let targetIndex = currentSavedOrder.indexOf(targetName);
-                if (this.insertAfterTarget) targetIndex += 1;
+                    let targetIndex = currentSavedOrder.indexOf(targetName);
+                    if (this.insertAfterTarget) targetIndex += 1;
 
-                if (targetIndex !== -1) {
-                    currentSavedOrder.splice(targetIndex, 0, sourceName);
-                    this.plugin.settings.folderManualOrders[activeMethodKey] = currentSavedOrder;
-                    await this.plugin.saveSettings();
-                    await this.renderCanvas();
-                }
+                    if (targetIndex !== -1) {
+                        currentSavedOrder.splice(targetIndex, 0, sourceName);
+                        this.plugin.settings.folderManualOrders[activeMethodKey] = currentSavedOrder;
+                        await this.plugin.saveSettings();
+                        await this.renderCanvas();
+                    }
+                })();
             });
         } else {
             card.setAttribute("draggable", "false");
@@ -723,7 +746,7 @@ export class GalleryDashboardView extends ItemView {
                     .setIcon("pencil")
                     .onClick(() => {
                         new RenameModal(this.app, item, () => {
-                            this.renderCanvas();
+                            void this.renderCanvas();
                         }).open();
                     });
             });
@@ -732,12 +755,14 @@ export class GalleryDashboardView extends ItemView {
                 menuItem
                     .setTitle("Delete Asset")
                     .setIcon("trash")
-                    .onClick(async () => {
-                        const confirmDelete = window.confirm(`Are you sure you want to permanently delete "${item.name}"?`);
-                        if (confirmDelete) {
-                            await this.app.vault.delete(item, true);
-                            await this.renderCanvas();
-                        }
+                    .onClick(() => {
+                        void (async () => {
+                            const confirmDelete = window.confirm(`Are you sure you want to permanently delete "${item.name}"?`);
+                            if (confirmDelete) {
+                                await this.app.fileManager.trashFile(item);
+                                await this.renderCanvas();
+                            }
+                        })();
                     });
             });
 
@@ -751,56 +776,66 @@ export class GalleryDashboardView extends ItemView {
             const folderMeta = this.plugin.settings.folderOverrides[item.path];
             const bannerUrl = folderMeta?.bannerUrl || this.plugin.settings.defaultFolderBanner;
             
-            bannerContainer.createEl("img", { attr: { src: bannerUrl, style: `object-fit: ${imgFitRule};` }, cls: "gallery-view-banner-img" });
+            const bannerImg = bannerContainer.createEl("img", { attr: { src: bannerUrl, style: `object-fit: ${imgFitRule};` }, cls: "gallery-view-banner-img" });
+
+            // Add YouTube class for cropping
+            if (bannerUrl && (bannerUrl.includes('youtube.com') || bannerUrl.includes('youtu.be') || bannerUrl.includes('img.youtube.com'))) {
+            bannerContainer.addClass("is-youtube-banner");
+            }
+
+            const metaContainer = infoSection.createDiv({ cls: "gallery-view-card-meta" });
+
+            // Add YouTube class for cropping
+            if (bannerUrl && (bannerUrl.includes('youtube.com') || bannerUrl.includes('youtu.be') || bannerUrl.includes('img.youtube.com'))) {
+            bannerContainer.addClass("is-youtube-banner");
+            }
             
-            const childCount = (item as TFolder).children.length;
-            infoSection.createDiv({ cls: "gallery-view-card-meta" }).setText(`${childCount} item${childCount === 1 ? "" : "s"} inside`);
+            if (item instanceof TFolder) {
+                const childCount = item.children.length;
+                infoSection.createDiv({ cls: "gallery-view-card-meta" }).setText(`${childCount} item${childCount === 1 ? "" : "s"} inside`);
 
-            if (this.plugin.settings.showFolderProgress) {
-                const metrics = this.getFolderProgressMetrics(item as TFolder);
-                if (metrics !== null) {
-                    const progressContainer = infoSection.createDiv({ attr: { style: "width: 100%; display: flex; flex-direction: column; gap: 4px; margin-top: 8px;" } });
-                    const labelRow = progressContainer.createDiv({ attr: { style: "display: flex; justify-content: space-between; font-size: 0.75em; color: var(--text-muted);" } });
-                    labelRow.createDiv().setText(`Progress: ${metrics.completed}/${metrics.total}`);
-                    labelRow.createDiv().setText(`${metrics.percent}%`);
+                if (this.plugin.settings.showFolderProgress) {
+                    const metrics = this.getFolderProgressMetrics(item);
+                    if (metrics !== null) {
+                        const progressContainer = infoSection.createDiv({ attr: { style: "width: 100%; display: flex; flex-direction: column; gap: 4px; margin-top: 8px;" } });
+                        const labelRow = progressContainer.createDiv({ attr: { style: "display: flex; justify-content: space-between; font-size: 0.75em; color: var(--text-muted);" } });
+                        labelRow.createDiv().setText(`Progress: ${metrics.completed}/${metrics.total}`);
+                        labelRow.createDiv().setText(`${metrics.percent}%`);
 
-                    const barTrack = progressContainer.createDiv({ attr: { style: "width: 100%; background: var(--background-modifier-border); border-radius: 4px; height: 5px; overflow: hidden;" } });
-                    barTrack.createDiv({ attr: { style: `width: ${metrics.percent}%; background: var(--interactive-accent); height: 100%; border-radius: 4px; transition: width 0.25s ease-in-out;` } });
+                        const barTrack = progressContainer.createDiv({ attr: { style: "width: 100%; background: var(--background-modifier-border); border-radius: 4px; height: 5px; overflow: hidden;" } });
+                        barTrack.createDiv({ attr: { style: `width: ${metrics.percent}%; background: var(--interactive-accent); height: 100%; border-radius: 4px; transition: width 0.25s ease-in-out;` } });
+                    }
                 }
             }
 
-            card.addEventListener("click", async () => {
-                this.historyStack.push(this.currentPath);
-                this.currentPath = item.path;
-                this.plugin.settings.lastOpenPath = item.path;
-                await this.plugin.saveSettings();
-                this.app.workspace.requestSaveLayout();
-                await this.renderCanvas();
+            card.addEventListener("click", () => {
+                void (async () => {
+                    this.historyStack.push(this.currentPath);
+                    this.currentPath = item.path;
+                    this.plugin.settings.lastOpenPath = item.path;
+                    await this.plugin.saveSettings();
+                    this.app.workspace.requestSaveLayout();
+                    await this.renderCanvas();
+                })();
             });
         } else if (item instanceof TFile) {
             card.addClass("is-file-child");
             const isPdf = item.extension === "pdf";
 
             let bannerUrl = this.plugin.settings.defaultFileBanner;
-            let frontmatter: any = {};
-            let isYouTube = false;
+            const frontmatter: Record<string, unknown> = {};
 
             if (!isPdf) {
                 const fileCache = this.app.metadataCache.getFileCache(item);
-                frontmatter = fileCache?.frontmatter || {};
-                bannerUrl = frontmatter.banner || this.plugin.settings.defaultFileBanner;
-                
-                // Detect YouTube banner URLs
-                if (bannerUrl && (bannerUrl.includes('youtube.com') || bannerUrl.includes('youtu.be') || bannerUrl.includes('img.youtube.com'))) {
-                    isYouTube = true;
-                    bannerContainer.addClass("is-youtube-banner");
-                }
+                const cachedFrontmatter = fileCache?.frontmatter || {};
+                Object.assign(frontmatter, cachedFrontmatter);
+                bannerUrl = (frontmatter.banner as string) || this.plugin.settings.defaultFileBanner;
             } else {
                 const folderMeta = this.plugin.settings.folderOverrides[item.path];
                 bannerUrl = folderMeta?.bannerUrl || this.plugin.settings.defaultPdfBanner;
             }
 
-            bannerContainer.createEl("img", { attr: { src: bannerUrl, style: `object-fit: ${imgFitRule};` }, cls: "gallery-view-banner-img" });
+             bannerContainer.createEl("img", { attr: { src: bannerUrl, style: `object-fit: ${imgFitRule};` }, cls: "gallery-view-banner-img" });
             const metaContainer = infoSection.createDiv({ cls: "gallery-view-card-meta" });
 
             if (isPdf) {
@@ -810,29 +845,31 @@ export class GalleryDashboardView extends ItemView {
                 this.plugin.settings.visibleProperties.forEach(propKey => {
                     if (frontmatter[propKey] !== undefined && propKey !== "checkbox") {
                         const badge = metaContainer.createDiv({ cls: "gallery-view-property-badge" });
-                        badge.setText(`${propKey}: ${frontmatter[propKey]}`);
+                        badge.setText(`${propKey}: ${String(frontmatter[propKey])}`);
                     }
                 });
             }
 
             if (this.plugin.settings.showCheckboxes && !isPdf) {
-                const hasCheckboxProperty = frontmatter.hasOwnProperty("checkbox");
+                const hasCheckboxProperty = Object.prototype.hasOwnProperty.call(frontmatter, "checkbox");
                 if (hasCheckboxProperty) {
                     const checkboxWrapper = infoSection.createDiv({ attr: { style: "display: flex; align-items: center; margin-top: 2px; width: fit-content;" } });
                     const checkbox = checkboxWrapper.createEl("input", { type: "checkbox", attr: { style: "cursor: pointer; width: 16px; height: 16px; margin: 0;" } });
                     checkbox.checked = Boolean(frontmatter["checkbox"]);
 
-                    checkbox.addEventListener("click", async (e) => {
-                        e.stopPropagation();
-                        const targetValue = checkbox.checked;
-                        await this.app.fileManager.processFrontMatter(item, (fm) => {
-                            fm["checkbox"] = targetValue;
-                        });
+                    checkbox.addEventListener("click", (e) => {
+                        void (async () => {
+                            e.stopPropagation();
+                            const targetValue = checkbox.checked;
+                            await this.app.fileManager.processFrontMatter(item, (fm) => {
+                                fm["checkbox"] = targetValue;
+                            });
+                        })();
                     });
                 }
             }
 
-            card.addEventListener("click", () => { this.app.workspace.getLeaf(false).openFile(item); });
+            card.addEventListener("click", () => { void this.app.workspace.getLeaf(false).openFile(item); });
         }
     }
 }

@@ -37,47 +37,49 @@ export default class GalleryViewPlugin extends Plugin {
         );
 
         this.registerEvent(
-            this.app.vault.on("rename", async (file, oldPath) => {
-                let layoutChanged = false;
+            this.app.vault.on("rename", (file, oldPath) => {
+                void (async () => {
+                    let layoutChanged = false;
 
-                if (this.settings.folderOverrides[oldPath]) {
-                    const dataConfig = this.settings.folderOverrides[oldPath];
-                    dataConfig.folderPath = file.path;
-                    this.settings.folderOverrides[file.path] = dataConfig;
-                    delete this.settings.folderOverrides[oldPath];
-                    layoutChanged = true;
-                }
+                    if (this.settings.folderOverrides[oldPath]) {
+                        const dataConfig = this.settings.folderOverrides[oldPath];
+                        dataConfig.folderPath = file.path;
+                        this.settings.folderOverrides[file.path] = dataConfig;
+                        delete this.settings.folderOverrides[oldPath];
+                        layoutChanged = true;
+                    }
 
-                if (this.settings.folderSortMethods[oldPath]) {
-                    this.settings.folderSortMethods[file.path] = this.settings.folderSortMethods[oldPath];
-                    delete this.settings.folderSortMethods[oldPath];
-                    layoutChanged = true;
-                }
+                    if (this.settings.folderSortMethods[oldPath]) {
+                        this.settings.folderSortMethods[file.path] = this.settings.folderSortMethods[oldPath];
+                        delete this.settings.folderSortMethods[oldPath];
+                        layoutChanged = true;
+                    }
 
-                if (this.settings.folderManualOrders[oldPath]) {
-                    this.settings.folderManualOrders[file.path] = this.settings.folderManualOrders[oldPath];
-                    delete this.settings.folderManualOrders[oldPath];
-                    layoutChanged = true;
-                }
+                    if (this.settings.folderManualOrders[oldPath]) {
+                        this.settings.folderManualOrders[file.path] = this.settings.folderManualOrders[oldPath];
+                        delete this.settings.folderManualOrders[oldPath];
+                        layoutChanged = true;
+                    }
 
-                if (this.settings.folderCardSizes && this.settings.folderCardSizes[oldPath]) {
-                    this.settings.folderCardSizes[file.path] = this.settings.folderCardSizes[oldPath];
-                    delete this.settings.folderCardSizes[oldPath];
-                    layoutChanged = true;
-                }
+                    if (this.settings.folderCardSizes && this.settings.folderCardSizes[oldPath]) {
+                        this.settings.folderCardSizes[file.path] = this.settings.folderCardSizes[oldPath];
+                        delete this.settings.folderCardSizes[oldPath];
+                        layoutChanged = true;
+                    }
 
-                const oldParentPath = oldPath.substring(0, oldPath.lastIndexOf("/")) || "";
-                const oldName = oldPath.substring(oldPath.lastIndexOf("/") + 1);
+                    const oldParentPath = oldPath.substring(0, oldPath.lastIndexOf("/")) || "";
+                    const oldName = oldPath.substring(oldPath.lastIndexOf("/") + 1);
 
-                if (this.settings.folderManualOrders[oldParentPath]) {
-                    this.settings.folderManualOrders[oldParentPath] = this.settings.folderManualOrders[oldParentPath]
-                        .map((itemName: string) => itemName === oldName ? file.name : itemName);
-                    layoutChanged = true;
-                }
+                    if (this.settings.folderManualOrders[oldParentPath]) {
+                        this.settings.folderManualOrders[oldParentPath] = this.settings.folderManualOrders[oldParentPath]
+                            .map((itemName: string) => itemName === oldName ? file.name : itemName);
+                        layoutChanged = true;
+                    }
 
-                if (layoutChanged) {
-                    await this.saveSettings();
-                }
+                    if (layoutChanged) {
+                        await this.saveSettings();
+                    }
+                })();
             })
         );
 
@@ -94,7 +96,7 @@ export default class GalleryViewPlugin extends Plugin {
         });
     }
 
-    async onunload() {
+    onunload(): void {
         // Don't detach leaves - let Obsidian handle it
         // Just clean up any plugin-specific resources if needed
     }
@@ -102,7 +104,7 @@ export default class GalleryViewPlugin extends Plugin {
     async activateGalleryView() {
         const { workspace } = this.app;
         const leaves = workspace.getLeavesOfType(VIEW_TYPE_GALLERY);
-        const existingLeaf = leaves[0];
+        const existingLeaf: WorkspaceLeaf | undefined = leaves[0];
 
         if (existingLeaf) {
             workspace.revealLeaf(existingLeaf);
@@ -115,7 +117,7 @@ export default class GalleryViewPlugin extends Plugin {
 
     async loadSettings() {
         const loadedData = await this.loadData();
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData as GalleryViewSettings);
         if (!this.settings.folderCardSizes) {
             this.settings.folderCardSizes = {};
         }
