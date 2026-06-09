@@ -776,14 +776,12 @@ export class GalleryDashboardView extends ItemView {
             const folderMeta = this.plugin.settings.folderOverrides[item.path];
             const bannerUrl = folderMeta?.bannerUrl || this.plugin.settings.defaultFolderBanner;
             
-            const bannerImg = bannerContainer.createEl("img", { attr: { src: bannerUrl, style: `object-fit: ${imgFitRule};` }, cls: "gallery-view-banner-img" });
 
             // Add YouTube class for cropping
             if (bannerUrl && (bannerUrl.includes('youtube.com') || bannerUrl.includes('youtu.be') || bannerUrl.includes('img.youtube.com'))) {
             bannerContainer.addClass("is-youtube-banner");
             }
 
-            const metaContainer = infoSection.createDiv({ cls: "gallery-view-card-meta" });
 
             // Add YouTube class for cropping
             if (bannerUrl && (bannerUrl.includes('youtube.com') || bannerUrl.includes('youtu.be') || bannerUrl.includes('img.youtube.com'))) {
