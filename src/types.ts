@@ -21,7 +21,7 @@ export interface GalleryViewSettings {
     folderManualOrders: Record<string, string[]>;
     folderOverrides: Record<string, FolderOverride>;
     folderCardSizes: Record<string, number>;
-    addPropertiesOnCreate: boolean; // New configuration key
+    addPropertiesOnCreate: boolean;
 }
 
 export const DEFAULT_SETTINGS: GalleryViewSettings = {
@@ -40,3 +40,51 @@ export const DEFAULT_SETTINGS: GalleryViewSettings = {
     folderCardSizes: {},
     addPropertiesOnCreate: true
 };
+
+// Type for frontmatter to avoid using 'any'
+export interface FrontmatterData {
+    banner?: string;
+    tags?: string | string[];
+    checkbox?: boolean;
+    [key: string]: unknown;
+}
+
+// Type for file cache with frontmatter
+export interface FileCacheWithFrontmatter {
+    frontmatter?: FrontmatterData;
+}
+
+// Type for folder progress metrics
+export interface FolderProgressMetrics {
+    total: number;
+    completed: number;
+    percent: number;
+}
+
+// Type for sort option in UI
+export interface SortOption {
+    value: SortMethod;
+    label: string;
+}
+
+// Type for YouTube oEmbed response
+export interface YouTubeOEmbedResponse {
+    title: string;
+    author_name: string;
+    author_url: string;
+    type: string;
+    height: number;
+    width: number;
+    version: string;
+    provider_name: string;
+    provider_url: string;
+    thumbnail_url: string;
+    thumbnail_width: number;
+    thumbnail_height: number;
+}
+
+// Type for state management
+export interface GalleryViewState {
+    currentPath: string;
+    historyStack: string[];
+}

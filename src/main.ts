@@ -1,4 +1,4 @@
-import { Plugin, WorkspaceLeaf} from "obsidian";
+import { Plugin, WorkspaceLeaf } from "obsidian";
 import { GalleryDashboardView, VIEW_TYPE_GALLERY } from "./view";
 import { GalleryViewSettings, DEFAULT_SETTINGS } from "./types";
 import { GalleryViewSettingTab } from "./settings";
@@ -16,13 +16,13 @@ export default class GalleryViewPlugin extends Plugin {
         );
 
         this.addRibbonIcon("library", "Open Library Gallery", () => {
-            this.activateGalleryView();
+            void this.activateGalleryView();
         });
 
         this.addCommand({
             id: "open-gallery-dashboard",
             name: "Open Gallery Dashboard Layout",
-            callback: () => this.activateGalleryView(),
+            callback: () => void this.activateGalleryView(),
         });
 
         this.registerEvent(
@@ -30,7 +30,7 @@ export default class GalleryViewPlugin extends Plugin {
                 const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_GALLERY);
                 leaves.forEach(leaf => {
                     if (leaf.view instanceof GalleryDashboardView) {
-                        leaf.view.renderCanvas();
+                        void leaf.view.renderCanvas();
                     }
                 });
             })
@@ -60,10 +60,9 @@ export default class GalleryViewPlugin extends Plugin {
                     layoutChanged = true;
                 }
 
-                const settingsAny = this.settings as any;
-                if (settingsAny.folderCardSizes && settingsAny.folderCardSizes[oldPath]) {
-                    settingsAny.folderCardSizes[file.path] = settingsAny.folderCardSizes[oldPath];
-                    delete settingsAny.folderCardSizes[oldPath];
+                if (this.settings.folderCardSizes && this.settings.folderCardSizes[oldPath]) {
+                    this.settings.folderCardSizes[file.path] = this.settings.folderCardSizes[oldPath];
+                    delete this.settings.folderCardSizes[oldPath];
                     layoutChanged = true;
                 }
 
@@ -72,7 +71,7 @@ export default class GalleryViewPlugin extends Plugin {
 
                 if (this.settings.folderManualOrders[oldParentPath]) {
                     this.settings.folderManualOrders[oldParentPath] = this.settings.folderManualOrders[oldParentPath]
-                        .map(name => name === oldName ? file.name : name);
+                        .map((itemName: string) => itemName === oldName ? file.name : itemName);
                     layoutChanged = true;
                 }
 
@@ -96,7 +95,8 @@ export default class GalleryViewPlugin extends Plugin {
     }
 
     async onunload() {
-        this.app.workspace.detachLeavesOfType(VIEW_TYPE_GALLERY);
+        // Don't detach leaves - let Obsidian handle it
+        // Just clean up any plugin-specific resources if needed
     }
 
     async activateGalleryView() {
@@ -114,10 +114,10 @@ export default class GalleryViewPlugin extends Plugin {
     }
 
     async loadSettings() {
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-        const settingsAny = this.settings as any;
-        if (!settingsAny.folderCardSizes) {
-            settingsAny.folderCardSizes = {};
+        const loadedData = await this.loadData();
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData);
+        if (!this.settings.folderCardSizes) {
+            this.settings.folderCardSizes = {};
         }
     }
 
@@ -129,7 +129,7 @@ export default class GalleryViewPlugin extends Plugin {
             if (leaf.view instanceof GalleryDashboardView) {
                 const existingPath = leaf.view.currentPath;
                 leaf.view.currentPath = existingPath || this.settings.rootSearchPath || "";
-                leaf.view.renderCanvas();
+                void leaf.view.renderCanvas();
             }
         }
     }
