@@ -11,6 +11,7 @@ import {
 	App,
 	Setting,
 	Menu,
+	ViewStateResult,
 } from "obsidian";
 import GalleryViewPlugin from "./main";
 import { SortMethod } from "./types";
@@ -282,7 +283,7 @@ export class GalleryDashboardView extends ItemView {
 		};
 	}
 
-	async setState(state: unknown, result: unknown) {
+	async setState(state: unknown, result: ViewStateResult) {
 		const typedState = state as Record<string, unknown> | null;
 		if (typedState && typeof typedState.currentPath === "string") {
 			this.currentPath = typedState.currentPath;
@@ -293,7 +294,7 @@ export class GalleryDashboardView extends ItemView {
 			this.rebuildHistoryStack();
 		}
 		await this.renderCanvas();
-		await super.setState(state, result as any);
+		return super.setState(state, result);
 	}
 
 	private getActiveFolderSize(): number {
@@ -446,7 +447,9 @@ export class GalleryDashboardView extends ItemView {
 			const res = await requestUrl({
 				url: `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`,
 			});
-			if (res.status === 200 && res.json) return res.json.title as string;
+			if (res.status === 200 && res.json) {
+				return (res.json as { title: string }).title;
+			}
 		} catch {
 			// Intentionally empty - return null on failure
 		}
@@ -639,7 +642,7 @@ export class GalleryDashboardView extends ItemView {
 			e.preventDefault();
 			e.stopPropagation();
 			this.isAddMenuOpen = false;
-			popoverMenuEl.style.display = "none";
+			popoverMenuEl.setCssProps({ display: "none" });
 			new CreateNoteModal(this.app, (name) => {
 				void (async () => {
 					const uniquePath = this.generateUniquePath(name);
@@ -848,13 +851,21 @@ export class GalleryDashboardView extends ItemView {
 				validItems.sort((a, b) => {
 					const tagA =
 						a instanceof TFile
-							? this.app.metadataCache.getFileCache(a)
-									?.frontmatter?.tags?.[0] || ""
+							? ((
+									this.app.metadataCache.getFileCache(a)
+										?.frontmatter?.tags as
+										| string[]
+										| undefined
+								)?.[0] ?? "")
 							: "";
 					const tagB =
 						b instanceof TFile
-							? this.app.metadataCache.getFileCache(b)
-									?.frontmatter?.tags?.[0] || ""
+							? ((
+									this.app.metadataCache.getFileCache(b)
+										?.frontmatter?.tags as
+										| string[]
+										| undefined
+								)?.[0] ?? "")
 							: "";
 					return (
 						(tagA as string).localeCompare(
@@ -1066,13 +1077,9 @@ export class GalleryDashboardView extends ItemView {
 					.setIcon("trash")
 					.onClick(() => {
 						void (async () => {
-							const confirmDelete = window.confirm(
-								`Are you sure you want to permanently delete "${item.name}"?`,
-							);
-							if (confirmDelete) {
-								await this.app.fileManager.trashFile(item);
-								await this.renderCanvas();
-							}
+							// Use vault.trash for broader compatibility instead of fileManager.trashFile
+							await this.app.vault.trash(item, true);
+							await this.renderCanvas();
 						})();
 					});
 			});
@@ -1254,7 +1261,7 @@ export class GalleryDashboardView extends ItemView {
 							const targetValue = checkbox.checked;
 							await this.app.fileManager.processFrontMatter(
 								item,
-								(fm) => {
+								(fm: Record<string, unknown>) => {
 									fm["checkbox"] = targetValue;
 								},
 							);

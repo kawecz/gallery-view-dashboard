@@ -71,21 +71,10 @@ class FolderSuggest {
 			});
 			const rect = this.inputEl.getBoundingClientRect();
 			this.suggestionEl.setCssProps({
-				position: "absolute",
 				top: `${rect.bottom + window.scrollY}px`,
 				left: `${rect.left + window.scrollX}px`,
 				width: `${rect.width}px`,
-				"max-height": "240px",
-				"overflow-y": "auto",
-				"z-index": "var(--layer-menu)",
-				"background-color": "var(--background-secondary)",
-				border: "1px solid var(--border-color)",
-				"border-radius": "6px",
-				"box-shadow": "var(--shadow-l)",
-				padding: "4px",
 			});
-		} else {
-			this.suggestionEl.empty();
 		}
 
 		const listWrap = this.suggestionEl.createDiv({ cls: "suggestion" });
@@ -129,6 +118,9 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 				void leaf.view.updateRootPath(newPath);
 			}
 		});
+	}
+	private refresh(): void {
+		this.refresh()
 	}
 
 	display(): void {
@@ -306,7 +298,7 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 								folderPath
 							];
 							await this.plugin.saveSettings();
-							this.display();
+							this.refresh();
 						});
 						new FolderSuggest(this.app, text.inputEl);
 					} else {
@@ -329,7 +321,7 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 								folderPath
 							];
 							await this.plugin.saveSettings();
-							this.display();
+							this.refresh()
 						})();
 					}),
 				);
@@ -352,7 +344,7 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 					isManual: true,
 				};
 				await this.plugin.saveSettings();
-				this.display();
+				this.refresh()
 			})();
 		});
 	}
@@ -400,9 +392,9 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 				const rowWrapper = containerEl.createDiv({
 					cls: "gallery-tree-row-wrapper",
 				});
+				rowWrapper.addClass("gallery-tree-row-indent");
 				rowWrapper.setCssProps({
 					"margin-left": `${level * 12}px`,
-					"margin-top": "6px",
 				});
 
 				const flexRow = rowWrapper.createDiv({

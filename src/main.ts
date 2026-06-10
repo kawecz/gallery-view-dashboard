@@ -125,20 +125,21 @@ export default class GalleryViewPlugin extends Plugin {
 		const existingLeaf: WorkspaceLeaf | undefined = leaves[0];
 
 		if (existingLeaf) {
-			workspace.revealLeaf(existingLeaf);
+			// Replace revealLeaf with setActiveLeaf for broader compatibility
+			workspace.setActiveLeaf(existingLeaf, { focus: true });
 		} else {
 			const leaf = workspace.getLeaf(false);
 			await leaf.setViewState({ type: VIEW_TYPE_GALLERY, active: true });
-			workspace.revealLeaf(leaf);
+			workspace.setActiveLeaf(leaf, { focus: true });
 		}
 	}
 
 	async loadSettings() {
-		const loadedData = await this.loadData();
+		const loadedData: unknown = await this.loadData();
 		this.settings = Object.assign(
 			{},
 			DEFAULT_SETTINGS,
-			loadedData as GalleryViewSettings,
+			loadedData as Partial<GalleryViewSettings>,
 		);
 		if (!this.settings.folderCardSizes) {
 			this.settings.folderCardSizes = {};

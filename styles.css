@@ -146,9 +146,25 @@
 		border-color 0.2s ease;
 }
 
+.gallery-suggestion-container {
+	position: absolute;
+	max-height: 240px;
+	overflow-y: auto;
+	z-index: var(--layer-menu);
+	background-color: var(--background-secondary);
+	border: 1px solid var(--border-color);
+	border-radius: 6px;
+	box-shadow: var(--shadow-l);
+	padding: 4px;
+}
+
 /* Only animate cards on fresh loads, not on re-renders */
 .gallery-view-grid.fresh-load .gallery-view-card {
 	animation: cardAppear 0.5s ease-out backwards;
+}
+
+.gallery-tree-row-indent {
+	margin-top: 6px;
 }
 
 @keyframes cardAppear {
