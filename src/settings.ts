@@ -120,7 +120,7 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 		});
 	}
 	private refresh(): void {
-		this.refresh()
+		this.refresh();
 	}
 
 	display(): void {
@@ -321,7 +321,7 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 								folderPath
 							];
 							await this.plugin.saveSettings();
-							this.refresh()
+							this.refresh();
 						})();
 					}),
 				);
@@ -344,7 +344,7 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 					isManual: true,
 				};
 				await this.plugin.saveSettings();
-				this.refresh()
+				this.refresh();
 			})();
 		});
 	}
@@ -394,7 +394,7 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 				});
 				rowWrapper.addClass("gallery-tree-row-indent");
 				rowWrapper.setCssProps({
-					"margin-left": `${level * 12}px`,
+					"--gallery-tree-indent": `${level * 12}px`,
 				});
 
 				const flexRow = rowWrapper.createDiv({

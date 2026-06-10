@@ -166,6 +166,10 @@
 .gallery-tree-row-indent {
 	margin-top: 6px;
 }
+.gallery-tree-row-wrapper {
+    margin-top: 6px;
+    margin-left: var(--gallery-tree-indent);
+}
 
 @keyframes cardAppear {
 	from {

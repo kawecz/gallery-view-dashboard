@@ -631,7 +631,9 @@ export class GalleryDashboardView extends ItemView {
 		addDropdownToggleBtn.addEventListener("click", (e: MouseEvent) => {
 			e.stopPropagation();
 			this.isAddMenuOpen = !this.isAddMenuOpen;
-			popoverMenuEl.style.display = this.isAddMenuOpen ? "flex" : "none";
+			popoverMenuEl.setCssProps({
+				display: this.isAddMenuOpen ? "flex" : "none",
+			});
 		});
 
 		const createNoteOpt = popoverMenuEl.createDiv({
@@ -668,7 +670,7 @@ export class GalleryDashboardView extends ItemView {
 			e.preventDefault();
 			e.stopPropagation();
 			this.isAddMenuOpen = false;
-			popoverMenuEl.style.display = "none";
+			popoverMenuEl.setCssProps({ display: "none" });
 			new YouTubeUrlPromptModal(this.app, (url) => {
 				const vid = extractYouTubeVideoId(url);
 				if (!vid) return;
@@ -868,11 +870,9 @@ export class GalleryDashboardView extends ItemView {
 								)?.[0] ?? "")
 							: "";
 					return (
-						(tagA as string).localeCompare(
-							tagB as string,
-							undefined,
-							{ sensitivity: "base" },
-						) ||
+						tagA.localeCompare(tagB, undefined, {
+							sensitivity: "base",
+						}) ||
 						a.name.localeCompare(b.name, undefined, {
 							numeric: true,
 							sensitivity: "base",
@@ -1077,8 +1077,11 @@ export class GalleryDashboardView extends ItemView {
 					.setIcon("trash")
 					.onClick(() => {
 						void (async () => {
-							// Use vault.trash for broader compatibility instead of fileManager.trashFile
-							await this.app.vault.trash(item, true);
+							if (this.app.fileManager.trashFile) {
+								await this.app.fileManager.trashFile(item);
+							} else {
+								await this.app.vault.trash(item, true);
+							}
 							await this.renderCanvas();
 						})();
 					});
