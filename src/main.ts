@@ -4,135 +4,158 @@ import { GalleryViewSettings, DEFAULT_SETTINGS } from "./types";
 import { GalleryViewSettingTab } from "./settings";
 
 export default class GalleryViewPlugin extends Plugin {
-    settings!: GalleryViewSettings;
+	settings!: GalleryViewSettings;
 
-    async onload() {
-        await this.loadSettings();
-        this.addSettingTab(new GalleryViewSettingTab(this.app, this));
-        
-        this.registerView(
-            VIEW_TYPE_GALLERY,
-            (leaf: WorkspaceLeaf) => new GalleryDashboardView(leaf, this)
-        );
+	async onload() {
+		await this.loadSettings();
+		this.addSettingTab(new GalleryViewSettingTab(this.app, this));
 
-        this.addRibbonIcon("library", "Open Library Gallery", () => {
-            void this.activateGalleryView();
-        });
+		this.registerView(
+			VIEW_TYPE_GALLERY,
+			(leaf: WorkspaceLeaf) => new GalleryDashboardView(leaf, this),
+		);
 
-        this.addCommand({
-            id: "open-gallery-dashboard",
-            name: "Open Gallery Dashboard Layout",
-            callback: () => void this.activateGalleryView(),
-        });
+		this.addRibbonIcon("library", "Open Library Gallery", () => {
+			void this.activateGalleryView();
+		});
 
-        this.registerEvent(
-            this.app.metadataCache.on("changed", () => {
-                const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_GALLERY);
-                leaves.forEach(leaf => {
-                    if (leaf.view instanceof GalleryDashboardView) {
-                        void leaf.view.renderCanvas();
-                    }
-                });
-            })
-        );
+		this.addCommand({
+			id: "open-gallery-dashboard",
+			name: "Open Gallery Dashboard Layout",
+			callback: () => void this.activateGalleryView(),
+		});
 
-        this.registerEvent(
-            this.app.vault.on("rename", (file, oldPath) => {
-                void (async () => {
-                    let layoutChanged = false;
+		this.registerEvent(
+			this.app.metadataCache.on("changed", () => {
+				const leaves =
+					this.app.workspace.getLeavesOfType(VIEW_TYPE_GALLERY);
+				leaves.forEach((leaf) => {
+					if (leaf.view instanceof GalleryDashboardView) {
+						void leaf.view.renderCanvas();
+					}
+				});
+			}),
+		);
 
-                    if (this.settings.folderOverrides[oldPath]) {
-                        const dataConfig = this.settings.folderOverrides[oldPath];
-                        dataConfig.folderPath = file.path;
-                        this.settings.folderOverrides[file.path] = dataConfig;
-                        delete this.settings.folderOverrides[oldPath];
-                        layoutChanged = true;
-                    }
+		this.registerEvent(
+			this.app.vault.on("rename", (file, oldPath) => {
+				void (async () => {
+					let layoutChanged = false;
 
-                    if (this.settings.folderSortMethods[oldPath]) {
-                        this.settings.folderSortMethods[file.path] = this.settings.folderSortMethods[oldPath];
-                        delete this.settings.folderSortMethods[oldPath];
-                        layoutChanged = true;
-                    }
+					if (this.settings.folderOverrides[oldPath]) {
+						const dataConfig =
+							this.settings.folderOverrides[oldPath];
+						dataConfig.folderPath = file.path;
+						this.settings.folderOverrides[file.path] = dataConfig;
+						delete this.settings.folderOverrides[oldPath];
+						layoutChanged = true;
+					}
 
-                    if (this.settings.folderManualOrders[oldPath]) {
-                        this.settings.folderManualOrders[file.path] = this.settings.folderManualOrders[oldPath];
-                        delete this.settings.folderManualOrders[oldPath];
-                        layoutChanged = true;
-                    }
+					if (this.settings.folderSortMethods[oldPath]) {
+						this.settings.folderSortMethods[file.path] =
+							this.settings.folderSortMethods[oldPath];
+						delete this.settings.folderSortMethods[oldPath];
+						layoutChanged = true;
+					}
 
-                    if (this.settings.folderCardSizes && this.settings.folderCardSizes[oldPath]) {
-                        this.settings.folderCardSizes[file.path] = this.settings.folderCardSizes[oldPath];
-                        delete this.settings.folderCardSizes[oldPath];
-                        layoutChanged = true;
-                    }
+					if (this.settings.folderManualOrders[oldPath]) {
+						this.settings.folderManualOrders[file.path] =
+							this.settings.folderManualOrders[oldPath];
+						delete this.settings.folderManualOrders[oldPath];
+						layoutChanged = true;
+					}
 
-                    const oldParentPath = oldPath.substring(0, oldPath.lastIndexOf("/")) || "";
-                    const oldName = oldPath.substring(oldPath.lastIndexOf("/") + 1);
+					if (
+						this.settings.folderCardSizes &&
+						this.settings.folderCardSizes[oldPath]
+					) {
+						this.settings.folderCardSizes[file.path] =
+							this.settings.folderCardSizes[oldPath];
+						delete this.settings.folderCardSizes[oldPath];
+						layoutChanged = true;
+					}
 
-                    if (this.settings.folderManualOrders[oldParentPath]) {
-                        this.settings.folderManualOrders[oldParentPath] = this.settings.folderManualOrders[oldParentPath]
-                            .map((itemName: string) => itemName === oldName ? file.name : itemName);
-                        layoutChanged = true;
-                    }
+					const oldParentPath =
+						oldPath.substring(0, oldPath.lastIndexOf("/")) || "";
+					const oldName = oldPath.substring(
+						oldPath.lastIndexOf("/") + 1,
+					);
 
-                    if (layoutChanged) {
-                        await this.saveSettings();
-                    }
-                })();
-            })
-        );
+					if (this.settings.folderManualOrders[oldParentPath]) {
+						this.settings.folderManualOrders[oldParentPath] =
+							this.settings.folderManualOrders[oldParentPath].map(
+								(itemName: string) =>
+									itemName === oldName ? file.name : itemName,
+							);
+						layoutChanged = true;
+					}
 
-        this.app.workspace.onLayoutReady(async () => {
-            const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_GALLERY);
-            for (const leaf of leaves) {
-                if (leaf.view instanceof GalleryDashboardView) {
-                    if (!leaf.view.currentPath) {
-                        leaf.view.currentPath = this.settings.lastOpenPath || this.settings.rootSearchPath || "";
-                        await leaf.view.renderCanvas();
-                    }
-                }
-            }
-        });
-    }
+					if (layoutChanged) {
+						await this.saveSettings();
+					}
+				})();
+			}),
+		);
 
-    onunload(): void {
-        // Don't detach leaves - let Obsidian handle it
-        // Just clean up any plugin-specific resources if needed
-    }
+		this.app.workspace.onLayoutReady(async () => {
+			const leaves =
+				this.app.workspace.getLeavesOfType(VIEW_TYPE_GALLERY);
+			for (const leaf of leaves) {
+				if (leaf.view instanceof GalleryDashboardView) {
+					if (!leaf.view.currentPath) {
+						leaf.view.currentPath =
+							this.settings.lastOpenPath ||
+							this.settings.rootSearchPath ||
+							"";
+						await leaf.view.renderCanvas();
+					}
+				}
+			}
+		});
+	}
 
-    async activateGalleryView() {
-        const { workspace } = this.app;
-        const leaves = workspace.getLeavesOfType(VIEW_TYPE_GALLERY);
-        const existingLeaf: WorkspaceLeaf | undefined = leaves[0];
+	onunload(): void {
+		// Don't detach leaves - let Obsidian handle it
+		// Just clean up any plugin-specific resources if needed
+	}
 
-        if (existingLeaf) {
-            workspace.revealLeaf(existingLeaf);
-        } else {
-            const leaf = workspace.getLeaf(false);
-            await leaf.setViewState({ type: VIEW_TYPE_GALLERY, active: true });
-            workspace.revealLeaf(leaf);
-        }
-    }
+	async activateGalleryView() {
+		const { workspace } = this.app;
+		const leaves = workspace.getLeavesOfType(VIEW_TYPE_GALLERY);
+		const existingLeaf: WorkspaceLeaf | undefined = leaves[0];
 
-    async loadSettings() {
-        const loadedData = await this.loadData();
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData as GalleryViewSettings);
-        if (!this.settings.folderCardSizes) {
-            this.settings.folderCardSizes = {};
-        }
-    }
+		if (existingLeaf) {
+			workspace.revealLeaf(existingLeaf);
+		} else {
+			const leaf = workspace.getLeaf(false);
+			await leaf.setViewState({ type: VIEW_TYPE_GALLERY, active: true });
+			workspace.revealLeaf(leaf);
+		}
+	}
 
-    async saveSettings() {
-        await this.saveData(this.settings);
-        
-        const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_GALLERY);
-        for (const leaf of leaves) {
-            if (leaf.view instanceof GalleryDashboardView) {
-                const existingPath = leaf.view.currentPath;
-                leaf.view.currentPath = existingPath || this.settings.rootSearchPath || "";
-                void leaf.view.renderCanvas();
-            }
-        }
-    }
+	async loadSettings() {
+		const loadedData = await this.loadData();
+		this.settings = Object.assign(
+			{},
+			DEFAULT_SETTINGS,
+			loadedData as GalleryViewSettings,
+		);
+		if (!this.settings.folderCardSizes) {
+			this.settings.folderCardSizes = {};
+		}
+	}
+
+	async saveSettings() {
+		await this.saveData(this.settings);
+
+		const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_GALLERY);
+		for (const leaf of leaves) {
+			if (leaf.view instanceof GalleryDashboardView) {
+				const existingPath = leaf.view.currentPath;
+				leaf.view.currentPath =
+					existingPath || this.settings.rootSearchPath || "";
+				void leaf.view.renderCanvas();
+			}
+		}
+	}
 }
