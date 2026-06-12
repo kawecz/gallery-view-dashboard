@@ -1,8 +1,8 @@
 {
 	"id": "gallery-view-dashboard",
 	"name": "Gallery View Dashboard",
-	"version": "2.1.4",
-	"minAppVersion": "1.5.8",
+	"version": "2.2.0",
+	"minAppVersion": "1.5.0",
 	"description": "Transforms your vault's directory structures into a streamlined grid of card visuals with fallback banners and interactive metadata.",
 	"author": "Kawê Cezar",
 	"authorUrl": "https://github.com/kawecz",

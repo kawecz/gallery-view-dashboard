@@ -1077,7 +1077,7 @@ export class GalleryDashboardView extends ItemView {
 					.setIcon("trash")
 					.onClick(() => {
 						void (async () => {
-							await this.app.vault.trash(item, true);
+							await this.app.fileManager.trashFile(item);
 							await this.renderCanvas();
 						})();
 					});
