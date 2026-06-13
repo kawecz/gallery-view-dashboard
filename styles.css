@@ -517,6 +517,20 @@
 	}
 }
 
+.gallery-checkbox-animate {
+    transform: scale(1.3);
+    transition: transform 0.15s ease-out;
+}
+
+.gallery-card-appear {
+    animation: cardAppear 0.5s ease-out backwards;
+    animation-delay: var(--animation-delay);
+}
+
+.gallery-card-no-animation {
+    animation: none;
+}
+
 /* --- MOBILE TARGETING CONTEXT --- */
 @media (max-width: 480px) {
 	.gallery-view-grid {
