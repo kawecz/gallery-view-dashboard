@@ -70,6 +70,51 @@ class CreateNoteModal extends Modal {
 	}
 }
 
+class CreateFolderModal extends Modal {
+	private onSubmit: (folderName: string) => void;
+	constructor(app: App, onSubmit: (folderName: string) => void) {
+		super(app);
+		this.onSubmit = onSubmit;
+	}
+	onOpen() {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl("h3", {
+			text: "Create New Folder",
+			attr: { style: "margin-top: 0;" },
+		});
+		let folderName = "New Folder";
+
+		new Setting(contentEl).setName("Folder Name").addText((text) =>
+			text
+				.setPlaceholder("New Folder")
+				.setValue(folderName)
+				.onChange((value) => {
+					folderName = value;
+				}),
+		);
+
+		const footerBtnRow = contentEl.createDiv({
+			attr: {
+				style: "display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;",
+			},
+		});
+		const cancelBtn = footerBtnRow.createEl("button", { text: "Cancel" });
+		const confirmBtn = footerBtnRow.createEl("button", {
+			text: "Create",
+			cls: "mod-cta",
+		});
+		cancelBtn.addEventListener("click", () => this.close());
+		confirmBtn.addEventListener("click", () => {
+			this.onSubmit(folderName.trim());
+			this.close();
+		});
+	}
+	onClose() {
+		this.contentEl.empty();
+	}
+}
+
 class RenameModal extends Modal {
 	private item: TAbstractFile;
 	private onConfirm: () => void;
@@ -258,6 +303,8 @@ export class GalleryDashboardView extends ItemView {
 	private isDragLocked: boolean = true;
 	private searchQuery: string = "";
 	private isAddMenuOpen: boolean = false;
+	private shouldAnimate: boolean = true;
+	private pendingBanners: Map<string, string> = new Map();
 
 	constructor(leaf: WorkspaceLeaf, plugin: GalleryViewPlugin) {
 		super(leaf);
@@ -304,6 +351,40 @@ export class GalleryDashboardView extends ItemView {
 			settings.folderCardSizes = {};
 		}
 		return settings.folderCardSizes[activeKey] || 200;
+	}
+
+	private updateCardCheckbox(file: TFile) {
+		const cache = this.app.metadataCache.getFileCache(file);
+		const hasCheckbox =
+			cache?.frontmatter && "checkbox" in cache.frontmatter;
+
+		if (!hasCheckbox) return;
+
+		const checkboxValue = Boolean(cache?.frontmatter?.checkbox);
+
+		// Find the card for this file
+		const cards = this.contentEl.querySelectorAll(".gallery-view-card");
+		cards.forEach((card) => {
+			const cardElement = card as HTMLElement & { itemName?: string };
+			if (cardElement.itemName === file.name) {
+				// Find the checkbox in this card
+				const checkbox = cardElement.querySelector(
+					'input[type="checkbox"]',
+				) as HTMLInputElement;
+				if (checkbox) {
+					// Only update if the state is different
+					if (checkbox.checked !== checkboxValue) {
+						checkbox.checked = checkboxValue;
+
+						// Add a subtle animation
+						checkbox.style.transform = "scale(1.3)";
+						setTimeout(() => {
+							checkbox.style.transform = "scale(1)";
+						}, 150);
+					}
+				}
+			}
+		});
 	}
 
 	private rebuildHistoryStack() {
@@ -353,9 +434,12 @@ export class GalleryDashboardView extends ItemView {
 			void (async () => {
 				if (
 					file instanceof TFile &&
-					file.parent?.path === (this.currentPath || "/")
+					(file.parent?.path || "") === (this.currentPath || "")
 				) {
+					// Full re-render without animations
+					this.shouldAnimate = false;
 					await this.renderCanvas();
+					this.shouldAnimate = true;
 				}
 			})();
 		});
@@ -384,6 +468,22 @@ export class GalleryDashboardView extends ItemView {
 			counter++;
 		}
 		return targetPath;
+	}
+
+	private generateUniqueFolderPath(baseName: string): string {
+		const name = baseName || "New Folder";
+		let folderPath = this.currentPath
+			? `${this.currentPath}/${name}`
+			: name;
+		let counter = 1;
+
+		while (this.app.vault.getAbstractFileByPath(folderPath)) {
+			folderPath = this.currentPath
+				? `${this.currentPath}/${name} ${counter}`
+				: `${name} ${counter}`;
+			counter++;
+		}
+		return folderPath;
 	}
 
 	private cleanupDragIndicators() {
@@ -587,9 +687,8 @@ export class GalleryDashboardView extends ItemView {
 			});
 		}
 
-		// UPDATED: Added fresh-load class and inline style with CSS variable
 		const grid = container.createDiv({
-			cls: "gallery-view-grid fresh-load",
+			cls: `gallery-view-grid${this.shouldAnimate ? " fresh-load" : ""}`,
 			attr: { style: `--card-custom-size: ${activeSize}px;` },
 		});
 
@@ -657,11 +756,45 @@ export class GalleryDashboardView extends ItemView {
 					}
 
 					await this.app.vault.create(uniquePath, fileContents);
+
+					// Force metadata cache to update
+					const file =
+						this.app.vault.getAbstractFileByPath(uniquePath);
+					if (file instanceof TFile) {
+						this.app.metadataCache.getFileCache(file);
+					}
+
+					// Small delay to ensure cache is ready
+					await new Promise((resolve) => setTimeout(resolve, 150));
+
 					await this.renderCanvas();
 				})();
 			}).open();
 		});
 
+		const createFolderOpt = popoverMenuEl.createDiv({
+			text: "📁 New Folder",
+			cls: "gallery-popover-menu-item",
+		});
+		// Find the createFolderOpt event listener and replace the folder creation logic:
+
+		createFolderOpt.addEventListener("mousedown", (e: MouseEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+			this.isAddMenuOpen = false;
+			popoverMenuEl.setCssProps({ display: "none" });
+
+			new CreateFolderModal(this.app, (folderName) => {
+				if (!folderName) return;
+				void (async () => {
+					// Use the new method to get a unique folder path
+					const folderPath =
+						this.generateUniqueFolderPath(folderName);
+					await this.app.vault.createFolder(folderPath);
+					await this.renderCanvas();
+				})();
+			}).open();
+		});
 		const importYoutubeOpt = popoverMenuEl.createDiv({
 			text: "🎬 Import YouTube",
 			cls: "gallery-popover-menu-item",
@@ -697,10 +830,31 @@ export class GalleryDashboardView extends ItemView {
 									fileContents = `---\nbanner: "${thumb}"\n---\n\n${iframeEmbed}\n`;
 								}
 
-								await this.app.vault.create(
+								const newFile = await this.app.vault.create(
 									uniquePath,
 									fileContents,
 								);
+
+								// Wait for the metadata cache to have the banner
+								let attempts = 0;
+								while (attempts < 20) {
+									const cache =
+										this.app.metadataCache.getFileCache(
+											newFile,
+										);
+									if (
+										cache?.frontmatter &&
+										cache.frontmatter.banner
+									) {
+										break; // Cache is ready!
+									}
+									await new Promise((resolve) =>
+										setTimeout(resolve, 50),
+									);
+									attempts++;
+								}
+
+								// Now render - cache has the banner
 								await this.renderCanvas();
 							})();
 						},
@@ -708,7 +862,6 @@ export class GalleryDashboardView extends ItemView {
 				});
 			}).open();
 		});
-
 		// RIGHT CONTROLS
 		const activeMethodKey = this.currentPath || "root";
 		const currentSortMethod =
@@ -817,7 +970,7 @@ export class GalleryDashboardView extends ItemView {
 	// UPDATED: Added grid.empty() and grid.removeClass("fresh-load") at the beginning
 	private async renderItemsGrid(grid: HTMLDivElement) {
 		grid.empty();
-		grid.removeClass("fresh-load");
+
 		const activeMethodKey = this.currentPath || "root";
 		const currentSortMethod =
 			this.plugin.settings.folderSortMethods[activeMethodKey] ||
@@ -842,6 +995,7 @@ export class GalleryDashboardView extends ItemView {
 				);
 			}
 
+			// Apply sorting logic
 			if (currentSortMethod === "alphabetical") {
 				validItems.sort((a, b) =>
 					a.name.localeCompare(b.name, undefined, {
@@ -914,13 +1068,25 @@ export class GalleryDashboardView extends ItemView {
 					text: "This folder contains no library assets.",
 				});
 			} else {
-				for (const item of validItems) {
-					await this.renderCard(
+				for (let i = 0; i < validItems.length; i++) {
+					const item = validItems[i];
+					if (!item) continue;
+					const card = await this.renderCard(
 						grid,
 						item,
 						item instanceof TFolder,
 						currentSortMethod === "manual",
 					);
+
+					// Control animation based on shouldAnimate flag
+					if (card) {
+						if (this.shouldAnimate) {
+							card.style.animation = `cardAppear 0.5s ease-out backwards`;
+							card.style.animationDelay = `${i * 0.05}s`;
+						} else {
+							card.style.animation = "none";
+						}
+					}
 				}
 			}
 		}
@@ -931,7 +1097,7 @@ export class GalleryDashboardView extends ItemView {
 		item: TAbstractFile,
 		isFolder: boolean,
 		isManualSort: boolean,
-	) {
+	): Promise<HTMLElement> {
 		const card = grid.createDiv({
 			cls: "gallery-view-card",
 		}) as HTMLElement & { itemName?: string };
@@ -1004,6 +1170,8 @@ export class GalleryDashboardView extends ItemView {
 						return;
 
 					const activeMethodKey = this.currentPath || "root";
+
+					// Get all cards currently in the grid
 					const itemsList = Array.from(grid.children)
 						.map(
 							(el) =>
@@ -1027,7 +1195,12 @@ export class GalleryDashboardView extends ItemView {
 							activeMethodKey
 						] = currentSavedOrder;
 						await this.plugin.saveSettings();
+
+						// Disable animations for this re-render
+						this.shouldAnimate = false;
 						await this.renderCanvas();
+						// Re-enable animations for future renders
+						this.shouldAnimate = true;
 					}
 				})();
 			});
@@ -1115,20 +1288,6 @@ export class GalleryDashboardView extends ItemView {
 				bannerContainer.addClass("is-youtube-banner");
 			}
 
-			infoSection.createDiv({
-				cls: "gallery-view-card-meta",
-			});
-
-			// Add YouTube class for cropping
-			if (
-				bannerUrl &&
-				(bannerUrl.includes("youtube.com") ||
-					bannerUrl.includes("youtu.be") ||
-					bannerUrl.includes("img.youtube.com"))
-			) {
-				bannerContainer.addClass("is-youtube-banner");
-			}
-
 			if (item instanceof TFolder) {
 				const childCount = item.children.length;
 				infoSection
@@ -1187,7 +1346,6 @@ export class GalleryDashboardView extends ItemView {
 
 			let bannerUrl = this.plugin.settings.defaultFileBanner;
 			const frontmatter: Record<string, unknown> = {};
-
 			if (!isPdf) {
 				const fileCache = this.app.metadataCache.getFileCache(item);
 				const cachedFrontmatter = fileCache?.frontmatter || {};
@@ -1195,12 +1353,6 @@ export class GalleryDashboardView extends ItemView {
 				bannerUrl =
 					(frontmatter.banner as string) ||
 					this.plugin.settings.defaultFileBanner;
-			} else {
-				const folderMeta =
-					this.plugin.settings.folderOverrides[item.path];
-				bannerUrl =
-					folderMeta?.bannerUrl ||
-					this.plugin.settings.defaultPdfBanner;
 			}
 
 			bannerContainer.createEl("img", {
@@ -1254,16 +1406,35 @@ export class GalleryDashboardView extends ItemView {
 					});
 					checkbox.checked = Boolean(frontmatter["checkbox"]);
 
+					// In the renderCard method, find the checkbox creation section (around line 850-870)
+					// Replace the existing checkbox event listener with this:
+
 					checkbox.addEventListener("click", (e) => {
 						void (async () => {
 							e.stopPropagation();
+							e.preventDefault(); // Add this to prevent any default behavior
+
 							const targetValue = checkbox.checked;
+
+							// Prevent the card animation from re-triggering
+							const card = checkbox.closest(
+								".gallery-view-card",
+							) as HTMLElement;
+							if (card) {
+								card.style.animation = "none";
+								card.offsetHeight; // Force reflow
+								card.style.animation = "";
+							}
+
 							await this.app.fileManager.processFrontMatter(
 								item,
 								(fm: Record<string, unknown>) => {
 									fm["checkbox"] = targetValue;
 								},
 							);
+
+							// Don't re-render the entire canvas, just update the UI if needed
+							// The checkbox state is already visually updated by the click
 						})();
 					});
 				}
@@ -1273,5 +1444,6 @@ export class GalleryDashboardView extends ItemView {
 				void this.app.workspace.getLeaf(false).openFile(item);
 			});
 		}
+		return card;
 	}
 }

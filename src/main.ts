@@ -26,18 +26,6 @@ export default class GalleryViewPlugin extends Plugin {
 		});
 
 		this.registerEvent(
-			this.app.metadataCache.on("changed", () => {
-				const leaves =
-					this.app.workspace.getLeavesOfType(VIEW_TYPE_GALLERY);
-				leaves.forEach((leaf) => {
-					if (leaf.view instanceof GalleryDashboardView) {
-						void leaf.view.renderCanvas();
-					}
-				});
-			}),
-		);
-
-		this.registerEvent(
 			this.app.vault.on("rename", (file, oldPath) => {
 				void (async () => {
 					let layoutChanged = false;
