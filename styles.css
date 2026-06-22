@@ -569,11 +569,11 @@
 }
 
 .gallery-tree-pdf-hint {
-	font-size: 0.7em;
-	color: var(--text-faint);
-	font-style: italic;
-	flex: 2;
-	min-width: 120px;
+    font-size: 0.7em;
+    color: var(--text-faint);
+    font-style: italic;
+    flex: 2;
+    min-width: 120px;
 }
 /* --- LIVE DRAG DROP INDICATOR LINE --- */
 .gallery-view-drop-indicator {

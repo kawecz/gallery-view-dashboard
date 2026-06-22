@@ -377,9 +377,9 @@ export class GalleryDashboardView extends ItemView {
 						checkbox.checked = checkboxValue;
 
 						// Add a subtle animation
-						checkbox.style.transform = "scale(1.3)";
-						setTimeout(() => {
-							checkbox.style.transform = "scale(1)";
+						checkbox.setCssProps({ transform: "scale(1.3)" });
+						window.setTimeout(() => {
+							checkbox.setCssProps({ transform: "scale(1)" });
 						}, 150);
 					}
 				}
@@ -808,7 +808,9 @@ export class GalleryDashboardView extends ItemView {
 					}
 
 					// Small delay to ensure cache is ready
-					await new Promise((resolve) => setTimeout(resolve, 150));
+					await new Promise((resolve) =>
+						window.setTimeout(resolve, 50),
+					);
 
 					await this.renderCanvas();
 				})();
@@ -899,7 +901,7 @@ export class GalleryDashboardView extends ItemView {
 										break;
 									}
 									await new Promise((resolve) =>
-										setTimeout(resolve, 50),
+										window.setTimeout(resolve, 150),
 									);
 									attempts++;
 								}
@@ -1130,10 +1132,12 @@ export class GalleryDashboardView extends ItemView {
 					// Control animation based on shouldAnimate flag
 					if (card) {
 						if (this.shouldAnimate) {
-							card.style.animation = `cardAppear 0.5s ease-out backwards`;
-							card.style.animationDelay = `${i * 0.05}s`;
+							card.setCssProps({
+								animation: `cardAppear 0.5s ease-out backwards`,
+								animationDelay: `${i * 0.05}s`,
+							});
 						} else {
-							card.style.animation = "none";
+							card.setCssProps({ animation: "none" });
 						}
 					}
 				}
@@ -1514,9 +1518,9 @@ export class GalleryDashboardView extends ItemView {
 								".gallery-view-card",
 							) as HTMLElement;
 							if (card) {
-								card.style.animation = "none";
-								card.offsetHeight; // Force reflow
-								card.style.animation = "";
+								card.setCssProps({ animation: "none" });
+								void card.offsetHeight; // Force reflow
+								card.setCssProps({ animation: "" });
 							}
 
 							await this.app.fileManager.processFrontMatter(

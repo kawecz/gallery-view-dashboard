@@ -366,15 +366,15 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 		// Expand/Collapse All handlers
 		expandAllBtn.addEventListener("click", () => {
 			void (async () => {
-				const allContainers = treeWrapper.querySelectorAll(
+				const allContainers = treeWrapper.querySelectorAll<HTMLElement>(
 					".gallery-tree-nested-container",
-				) as NodeListOf<HTMLElement>;
-				const allToggles = treeWrapper.querySelectorAll(
+				);
+				const allToggles = treeWrapper.querySelectorAll<HTMLElement>(
 					".gallery-tree-toggle-btn",
-				) as NodeListOf<HTMLElement>;
+				);
 
 				allContainers.forEach((el) => {
-					el.style.display = "block";
+					el.setCssProps({ display: "block" });
 				});
 				allToggles.forEach((el) => {
 					el.textContent = "▾";
@@ -389,7 +389,7 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 					}
 					folder.children
 						.filter((child) => child instanceof TFolder)
-						.forEach((child) => updateShowSubs(child as TFolder));
+						.forEach((child) => updateShowSubs(child));
 				};
 				folders.forEach((folder) => updateShowSubs(folder));
 
@@ -407,7 +407,7 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 				) as NodeListOf<HTMLElement>;
 
 				allContainers.forEach((el) => {
-					el.style.display = "none";
+					el.setCssProps({ display: "none" });
 				});
 				allToggles.forEach((el) => {
 					el.textContent = "▸";
@@ -422,7 +422,7 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 					}
 					folder.children
 						.filter((child) => child instanceof TFolder)
-						.forEach((child) => updateShowSubs(child as TFolder));
+						.forEach((child) => updateShowSubs(child));
 				};
 				folders.forEach((folder) => updateShowSubs(folder));
 
