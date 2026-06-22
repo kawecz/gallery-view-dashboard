@@ -376,10 +376,10 @@ export class GalleryDashboardView extends ItemView {
 					if (checkbox.checked !== checkboxValue) {
 						checkbox.checked = checkboxValue;
 
-						// Add a subtle animation using CSS class
-						checkbox.addClass("gallery-checkbox-animate");
-						window.setTimeout(() => {
-							checkbox.removeClass("gallery-checkbox-animate");
+						// Add a subtle animation
+						checkbox.style.transform = "scale(1.3)";
+						setTimeout(() => {
+							checkbox.style.transform = "scale(1)";
 						}, 150);
 					}
 				}
@@ -495,6 +495,7 @@ export class GalleryDashboardView extends ItemView {
 		}
 		this.contentEl.querySelectorAll(".gallery-view-card").forEach((el) => {
 			(el as HTMLElement).setCssProps({ opacity: "1" });
+			el.removeClass("gallery-view-drop-target");
 		});
 	}
 
@@ -554,6 +555,48 @@ export class GalleryDashboardView extends ItemView {
 			// Intentionally empty - return null on failure
 		}
 		return null;
+	}
+
+	private async getYouTubeDuration(url: string): Promise<string | null> {
+		const apiKey = this.plugin.settings.youtubeApiKey;
+		if (!apiKey) return null;
+
+		const videoId = extractYouTubeVideoId(url);
+		if (!videoId) return null;
+
+		try {
+			const res = await requestUrl({
+				url: `https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${videoId}&key=${apiKey}`,
+			});
+			if (res.status === 200 && res.json) {
+				const data = res.json as {
+					items: { contentDetails: { duration: string } }[];
+				};
+				const firstItem = data.items?.[0];
+				if (firstItem?.contentDetails?.duration) {
+					return this.parseISODuration(
+						firstItem.contentDetails.duration,
+					);
+				}
+			}
+		} catch {
+			// Silently fail — duration is optional
+		}
+		return null;
+	}
+
+	private parseISODuration(isoDuration: string): string {
+		const match = isoDuration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+		if (!match) return "?";
+
+		const hours = parseInt(match[1] ?? "0");
+		const minutes = parseInt(match[2] ?? "0");
+		const seconds = parseInt(match[3] ?? "0");
+
+		if (hours > 0) {
+			return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+		}
+		return `${minutes}:${String(seconds).padStart(2, "0")}`;
 	}
 
 	public async renderCanvas() {
@@ -765,9 +808,7 @@ export class GalleryDashboardView extends ItemView {
 					}
 
 					// Small delay to ensure cache is ready
-					await new Promise((resolve) =>
-						window.setTimeout(resolve, 150),
-					);
+					await new Promise((resolve) => setTimeout(resolve, 150));
 
 					await this.renderCanvas();
 				})();
@@ -821,16 +862,23 @@ export class GalleryDashboardView extends ItemView {
 								const uniquePath =
 									this.generateUniquePath(fTitle);
 
+								// Fetch duration if API key is available
+								const duration =
+									await this.getYouTubeDuration(url);
+
 								const iframeEmbed = `<iframe title="${fTitle.replace(/"/g, "&quot;")}" src="https://www.youtube.com/embed/${vid}?feature=oembed" height="113" width="200" allowfullscreen="" allow="fullscreen" style="aspect-ratio: 1.76991 / 1; width: 100%; height: 100%;"></iframe>`;
 
-								let fileContents = "";
+								let frontmatterLines = `banner: "${thumb}"`;
+								if (duration) {
+									frontmatterLines += `\nduration: "${duration}"`;
+								}
 								if (
 									this.plugin.settings.addPropertiesOnCreate
 								) {
-									fileContents = `---\nbanner: "${thumb}"\ncreated: ${new Date().toISOString().split("T")[0]}\n---\n\n${iframeEmbed}\n`;
-								} else {
-									fileContents = `---\nbanner: "${thumb}"\n---\n\n${iframeEmbed}\n`;
+									frontmatterLines += `\ncreated: ${new Date().toISOString().split("T")[0]}`;
 								}
+
+								const fileContents = `---\n${frontmatterLines}\n---\n\n${iframeEmbed}\n`;
 
 								const newFile = await this.app.vault.create(
 									uniquePath,
@@ -848,15 +896,14 @@ export class GalleryDashboardView extends ItemView {
 										cache?.frontmatter &&
 										cache.frontmatter.banner
 									) {
-										break; // Cache is ready!
+										break;
 									}
 									await new Promise((resolve) =>
-										window.setTimeout(resolve, 50),
+										setTimeout(resolve, 50),
 									);
 									attempts++;
 								}
 
-								// Now render - cache has the banner
 								await this.renderCanvas();
 							})();
 						},
@@ -1080,15 +1127,13 @@ export class GalleryDashboardView extends ItemView {
 						currentSortMethod === "manual",
 					);
 
+					// Control animation based on shouldAnimate flag
 					if (card) {
 						if (this.shouldAnimate) {
-							card.addClass("gallery-card-appear");
-							card.style.setProperty(
-								"--animation-delay",
-								`${i * 0.05}s`,
-							);
+							card.style.animation = `cardAppear 0.5s ease-out backwards`;
+							card.style.animationDelay = `${i * 0.05}s`;
 						} else {
-							card.addClass("gallery-card-no-animation");
+							card.style.animation = "none";
 						}
 					}
 				}
@@ -1124,90 +1169,127 @@ export class GalleryDashboardView extends ItemView {
 				this.cleanupDragIndicators();
 			});
 
-			card.addEventListener("dragover", (e: DragEvent) => {
-				e.preventDefault();
-				if (!this.draggedItemPath || this.draggedItemPath === item.name)
-					return;
+			if (isManualSort && !this.isDragLocked) {
+				card.setAttribute("draggable", "true");
+				card.setCssProps({ cursor: "grab" });
 
-				if (!this.indicatorEl) {
-					this.indicatorEl = grid.createDiv({
-						cls: "gallery-view-drop-indicator",
-					});
-				}
-
-				const cardRect = card.getBoundingClientRect();
-				const gridRect = grid.getBoundingClientRect();
-				const relativeMouseX = e.clientX - cardRect.left;
-				this.insertAfterTarget = relativeMouseX > cardRect.width / 2;
-				this.currentTargetName = item.name;
-
-				const indicatorTop = cardRect.top - gridRect.top;
-				const indicatorHeight = cardRect.height;
-				let indicatorLeft = cardRect.left - gridRect.left;
-
-				if (this.insertAfterTarget) {
-					indicatorLeft += cardRect.width + 8;
-				} else {
-					indicatorLeft -= 10;
-				}
-
-				this.indicatorEl.setCssProps({
-					top: `${indicatorTop}px`,
-					height: `${indicatorHeight}px`,
-					left: `${indicatorLeft}px`,
-					display: "block",
+				card.addEventListener("dragstart", (e) => {
+					this.draggedItemPath = item.name;
+					card.setCssProps({ opacity: "0.3" });
+					if (e.dataTransfer) {
+						e.dataTransfer.effectAllowed = "move";
+						e.dataTransfer.setData("text/plain", item.name);
+					}
 				});
-			});
 
-			card.addEventListener("drop", (e) => {
-				void (async () => {
-					e.preventDefault();
-					const sourceName =
-						this.draggedItemPath ||
-						(e.dataTransfer
-							? e.dataTransfer.getData("text/plain")
-							: null);
-					const targetName = this.currentTargetName;
-
+				card.addEventListener("dragend", () => {
 					this.cleanupDragIndicators();
-					if (!sourceName || !targetName || sourceName === targetName)
+				});
+
+				card.addEventListener("dragover", (e: DragEvent) => {
+					e.preventDefault();
+					if (
+						!this.draggedItemPath ||
+						this.draggedItemPath === item.name
+					)
 						return;
 
-					const activeMethodKey = this.currentPath || "root";
-
-					// Get all cards currently in the grid
-					const itemsList = Array.from(grid.children)
-						.map(
-							(el) =>
-								(el as HTMLElement & { itemName?: string })
-									.itemName,
-						)
-						.filter(Boolean) as string[];
-
-					const currentSavedOrder = this.plugin.settings
-						.folderManualOrders[activeMethodKey] || [...itemsList];
-					const sourceIndex = currentSavedOrder.indexOf(sourceName);
-					if (sourceIndex !== -1)
-						currentSavedOrder.splice(sourceIndex, 1);
-
-					let targetIndex = currentSavedOrder.indexOf(targetName);
-					if (this.insertAfterTarget) targetIndex += 1;
-
-					if (targetIndex !== -1) {
-						currentSavedOrder.splice(targetIndex, 0, sourceName);
-						this.plugin.settings.folderManualOrders[
-							activeMethodKey
-						] = currentSavedOrder;
-						await this.plugin.saveSettings();
-
-						// Disable animations for this re-render
-						this.shouldAnimate = false;
-						await this.renderCanvas();
-						// Re-enable animations for future renders
-						this.shouldAnimate = true;
+					if (!this.indicatorEl) {
+						this.indicatorEl = grid.createDiv({
+							cls: "gallery-view-drop-indicator",
+						});
 					}
-				})();
-			});
+
+					const cardRect = card.getBoundingClientRect();
+					const gridRect = grid.getBoundingClientRect();
+					const relativeMouseX = e.clientX - cardRect.left;
+					this.insertAfterTarget =
+						relativeMouseX > cardRect.width / 2;
+					this.currentTargetName = item.name;
+
+					const indicatorTop = cardRect.top - gridRect.top;
+					const indicatorHeight = cardRect.height;
+					let indicatorLeft = cardRect.left - gridRect.left;
+
+					if (this.insertAfterTarget) {
+						indicatorLeft += cardRect.width + 8;
+					} else {
+						indicatorLeft -= 10;
+					}
+
+					this.indicatorEl.setCssProps({
+						top: `${indicatorTop}px`,
+						height: `${indicatorHeight}px`,
+						left: `${indicatorLeft}px`,
+						display: "block",
+					});
+				});
+
+				card.addEventListener("dragleave", () => {
+					card.removeClass("gallery-view-drop-target");
+				});
+
+				card.addEventListener("drop", (e) => {
+					void (async () => {
+						e.preventDefault();
+						const sourceName =
+							this.draggedItemPath ||
+							(e.dataTransfer
+								? e.dataTransfer.getData("text/plain")
+								: null);
+						const targetName = this.currentTargetName;
+
+						this.cleanupDragIndicators();
+						if (
+							!sourceName ||
+							!targetName ||
+							sourceName === targetName
+						)
+							return;
+
+						const activeMethodKey = this.currentPath || "root";
+
+						const itemsList = Array.from(grid.children)
+							.map(
+								(el) =>
+									(el as HTMLElement & { itemName?: string })
+										.itemName,
+							)
+							.filter(Boolean) as string[];
+
+						const currentSavedOrder = this.plugin.settings
+							.folderManualOrders[activeMethodKey] || [
+							...itemsList,
+						];
+						const sourceIndex =
+							currentSavedOrder.indexOf(sourceName);
+						if (sourceIndex !== -1)
+							currentSavedOrder.splice(sourceIndex, 1);
+
+						let targetIndex = currentSavedOrder.indexOf(targetName);
+						if (this.insertAfterTarget) targetIndex += 1;
+
+						if (targetIndex !== -1) {
+							currentSavedOrder.splice(
+								targetIndex,
+								0,
+								sourceName,
+							);
+							this.plugin.settings.folderManualOrders[
+								activeMethodKey
+							] = currentSavedOrder;
+							await this.plugin.saveSettings();
+
+							this.shouldAnimate = false;
+							await this.renderCanvas();
+							this.shouldAnimate = true;
+						}
+					})();
+				});
+			} else {
+				card.setAttribute("draggable", "false");
+				card.setCssProps({ cursor: "pointer" });
+			}
 		} else {
 			card.setAttribute("draggable", "false");
 			card.setCssProps({ cursor: "pointer" });
@@ -1348,7 +1430,10 @@ export class GalleryDashboardView extends ItemView {
 			card.addClass("is-file-child");
 			const isPdf = item.extension === "pdf";
 
-			let bannerUrl = this.plugin.settings.defaultFileBanner;
+			let bannerUrl = isPdf
+				? this.plugin.settings.defaultPdfBanner ||
+					this.plugin.settings.defaultFileBanner
+				: this.plugin.settings.defaultFileBanner;
 			const frontmatter: Record<string, unknown> = {};
 			if (!isPdf) {
 				const fileCache = this.app.metadataCache.getFileCache(item);
@@ -1387,6 +1472,13 @@ export class GalleryDashboardView extends ItemView {
 							`${propKey}: ${String(frontmatter[propKey])}`,
 						);
 					}
+					// Duration badge (for YouTube imports)
+					if (frontmatter.duration && !isPdf) {
+						const durationBadge = metaContainer.createDiv({
+							cls: "gallery-view-property-badge gallery-view-duration-badge",
+						});
+						durationBadge.setText(`⏱ ${frontmatter.duration}`);
+					}
 				});
 			}
 
@@ -1410,9 +1502,6 @@ export class GalleryDashboardView extends ItemView {
 					});
 					checkbox.checked = Boolean(frontmatter["checkbox"]);
 
-					// In the renderCard method, find the checkbox creation section (around line 850-870)
-					// Replace the existing checkbox event listener with this:
-
 					checkbox.addEventListener("click", (e) => {
 						void (async () => {
 							e.stopPropagation();
@@ -1420,16 +1509,16 @@ export class GalleryDashboardView extends ItemView {
 
 							const targetValue = checkbox.checked;
 
+							// Prevent the card animation from re-triggering
 							const card = checkbox.closest(
 								".gallery-view-card",
 							) as HTMLElement;
 							if (card) {
-								card.removeClass("gallery-card-appear");
-								card.addClass("gallery-card-no-animation");
-								// Force reflow by accessing and using offsetHeight
-								void card.offsetHeight;
-								card.removeClass("gallery-card-no-animation");
+								card.style.animation = "none";
+								card.offsetHeight; // Force reflow
+								card.style.animation = "";
 							}
+
 							await this.app.fileManager.processFrontMatter(
 								item,
 								(fm: Record<string, unknown>) => {

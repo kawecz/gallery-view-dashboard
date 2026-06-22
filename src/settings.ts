@@ -264,6 +264,22 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 					}),
 			);
 
+		// NEW SETTING
+		new Setting(containerEl)
+			.setName("YouTube Data API Key (optional)")
+			.setDesc(
+				"Enables fetching video duration when importing from YouTube. Get a free key from Google Cloud Console.",
+			)
+			.addText((text) =>
+				text
+					.setPlaceholder("AIza...")
+					.setValue(this.plugin.settings.youtubeApiKey || "")
+					.onChange(async (value) => {
+						this.plugin.settings.youtubeApiKey = value.trim();
+						await this.plugin.saveSettings();
+					}),
+			);
+
 		new Setting(containerEl)
 			.setName("Live Library Vault Tree Structure")
 			.setHeading();
@@ -272,81 +288,6 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 		});
 
 		this.renderTreeContainer(treeContainer);
-
-		new Setting(containerEl)
-			.setName("Manual Customizations Overrides")
-			.setHeading();
-
-		Object.keys(this.plugin.settings.folderOverrides).forEach(
-			(folderPath) => {
-				const config = this.plugin.settings.folderOverrides[folderPath];
-				if (!config || !config.isManual) return;
-				if (folderPath === (this.plugin.settings.rootSearchPath || "/"))
-					return;
-
-				const rowSetting = new Setting(containerEl);
-				rowSetting.addText((text) => {
-					text.setValue(folderPath).setPlaceholder("Folder Path");
-					if (folderPath.startsWith("new-folder-path-")) {
-						text.setDisabled(false);
-						text.onChange(async (val) => {
-							this.plugin.settings.folderOverrides[val] = {
-								...config,
-								folderPath: val,
-							};
-							delete this.plugin.settings.folderOverrides[
-								folderPath
-							];
-							await this.plugin.saveSettings();
-							this.refresh();
-						});
-						new FolderSuggest(this.app, text.inputEl);
-					} else {
-						text.setDisabled(true);
-					}
-				});
-				rowSetting.addText((text) =>
-					text
-						.setValue(config.bannerUrl ?? "")
-						.setPlaceholder("Banner URL...")
-						.onChange(async (val) => {
-							config.bannerUrl = val;
-							await this.plugin.saveSettings();
-						}),
-				);
-				rowSetting.addButton((btn) =>
-					btn.setButtonText("❌").onClick(() => {
-						void (async () => {
-							delete this.plugin.settings.folderOverrides[
-								folderPath
-							];
-							await this.plugin.saveSettings();
-							this.refresh();
-						})();
-					}),
-				);
-			},
-		);
-
-		const btnContainer = containerEl.createDiv();
-		const addBtn = btnContainer.createEl("button", {
-			text: "+ Add Manual Override",
-			cls: "mod-cta",
-		});
-		addBtn.addEventListener("click", () => {
-			void (async () => {
-				this.plugin.settings.folderOverrides[
-					"new-folder-path-" + Date.now()
-				] = {
-					folderPath: "",
-					bannerUrl: "",
-					showSubs: false,
-					isManual: true,
-				};
-				await this.plugin.saveSettings();
-				this.refresh();
-			})();
-		});
 	}
 
 	private renderTreeContainer(containerEl: HTMLElement) {
@@ -359,139 +300,404 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 				? this.app.vault.getRoot()
 				: this.app.vault.getAbstractFileByPath(resolvedPath);
 
-		if (rootFolder instanceof TFolder) {
-			this.displayFolderTree(containerEl, rootFolder, 0);
-		} else {
+		if (!(rootFolder instanceof TFolder)) {
 			containerEl.createDiv({
 				text: "Target directory path configuration is invalid or does not exist.",
 				cls: "setting-item-description",
 			});
+			return;
 		}
+
+		// Collapse/Expand All buttons
+		const controlsRow = containerEl.createDiv({
+			cls: "gallery-tree-controls-row",
+		});
+
+		const expandAllBtn = controlsRow.createEl("button", {
+			text: "Expand All",
+			cls: "gallery-tree-expand-btn",
+		});
+		const collapseAllBtn = controlsRow.createEl("button", {
+			text: "Collapse All",
+			cls: "gallery-tree-collapse-btn",
+		});
+
+		// Tree wrapper
+		const treeWrapper = containerEl.createDiv({
+			cls: "gallery-tree-wrapper",
+		});
+
+		// Separate folders and PDFs
+		const folders = rootFolder.children.filter(
+			(child) => child instanceof TFolder,
+		) as TFolder[];
+		const pdfs = rootFolder.children.filter(
+			(child) => child instanceof TFile && child.extension === "pdf",
+		) as TFile[];
+
+		if (folders.length > 0) {
+			const folderSection = treeWrapper.createDiv({
+				cls: "gallery-tree-section",
+			});
+			folderSection.createDiv({
+				cls: "gallery-tree-section-header",
+				text: "📁 Folders",
+			});
+
+			folders
+				.sort((a, b) =>
+					a.name.localeCompare(b.name, undefined, {
+						numeric: true,
+						sensitivity: "base",
+					}),
+				)
+				.forEach((folder) => {
+					this.displayFolderTree(folderSection, folder, 0);
+				});
+		}
+
+		if (folders.length === 0 && pdfs.length === 0) {
+			treeWrapper.createDiv({
+				text: "No folders or PDFs found in this location.",
+				cls: "gallery-tree-empty-msg",
+			});
+		}
+
+		// Expand/Collapse All handlers
+		expandAllBtn.addEventListener("click", () => {
+			void (async () => {
+				const allContainers = treeWrapper.querySelectorAll(
+					".gallery-tree-nested-container",
+				) as NodeListOf<HTMLElement>;
+				const allToggles = treeWrapper.querySelectorAll(
+					".gallery-tree-toggle-btn",
+				) as NodeListOf<HTMLElement>;
+
+				allContainers.forEach((el) => {
+					el.style.display = "block";
+				});
+				allToggles.forEach((el) => {
+					el.textContent = "▾";
+				});
+
+				// Update all folder showSubs states
+				const updateShowSubs = (folder: TFolder) => {
+					if (this.plugin.settings.folderOverrides[folder.path]) {
+						this.plugin.settings.folderOverrides[
+							folder.path
+						]!.showSubs = true;
+					}
+					folder.children
+						.filter((child) => child instanceof TFolder)
+						.forEach((child) => updateShowSubs(child as TFolder));
+				};
+				folders.forEach((folder) => updateShowSubs(folder));
+
+				await this.plugin.saveSettings();
+			})();
+		});
+
+		collapseAllBtn.addEventListener("click", () => {
+			void (async () => {
+				const allContainers = treeWrapper.querySelectorAll(
+					".gallery-tree-nested-container",
+				) as NodeListOf<HTMLElement>;
+				const allToggles = treeWrapper.querySelectorAll(
+					".gallery-tree-toggle-btn",
+				) as NodeListOf<HTMLElement>;
+
+				allContainers.forEach((el) => {
+					el.style.display = "none";
+				});
+				allToggles.forEach((el) => {
+					el.textContent = "▸";
+				});
+
+				// Update all folder showSubs states
+				const updateShowSubs = (folder: TFolder) => {
+					if (this.plugin.settings.folderOverrides[folder.path]) {
+						this.plugin.settings.folderOverrides[
+							folder.path
+						]!.showSubs = false;
+					}
+					folder.children
+						.filter((child) => child instanceof TFolder)
+						.forEach((child) => updateShowSubs(child as TFolder));
+				};
+				folders.forEach((folder) => updateShowSubs(folder));
+
+				await this.plugin.saveSettings();
+			})();
+		});
 	}
 
 	private displayFolderTree(
 		containerEl: HTMLElement,
 		folder: TFolder,
 		level: number,
+		//_isRootLevel: boolean,
 	) {
-		const sortedChildren = [...folder.children].sort((a, b) =>
-			a.name.localeCompare(b.name, undefined, {
-				numeric: true,
-				sensitivity: "base",
-			}),
+		const childPath = folder.path;
+
+		if (!this.plugin.settings.folderOverrides[childPath]) {
+			this.plugin.settings.folderOverrides[childPath] = {
+				folderPath: childPath,
+				bannerUrl: "",
+				showSubs: false,
+			};
+		}
+
+		const folderData = this.plugin.settings.folderOverrides[childPath];
+		const hasSubContent = folder.children.some(
+			(item) =>
+				item instanceof TFolder ||
+				(item instanceof TFile && item.extension === "pdf"),
 		);
 
-		sortedChildren.forEach((child) => {
-			const childPath = child.path;
+		// Main row
+		const rowWrapper = containerEl.createDiv({
+			cls: "gallery-tree-row",
+		});
+		rowWrapper.setAttr("data-level", String(level));
 
-			if (
-				child instanceof TFolder ||
-				(child instanceof TFile && child.extension === "pdf")
-			) {
-				const isFolder = child instanceof TFolder;
-				const rowWrapper = containerEl.createDiv({
-					cls: "gallery-tree-row-wrapper",
-				});
-				rowWrapper.addClass("gallery-tree-row-indent");
-				rowWrapper.setCssProps({
-					"--gallery-tree-indent": `${level * 12}px`,
-				});
+		const flexRow = rowWrapper.createDiv({
+			cls: "gallery-tree-flex-row",
+		});
 
-				const flexRow = rowWrapper.createDiv({
-					cls: "gallery-tree-flex-row",
-				});
-
-				flexRow.createSpan({
-					text: isFolder ? "↳ 📁" : "↳ 📄",
-				});
-				flexRow.createSpan({
-					text: `${child.name}:`,
-					cls: "gallery-tree-name-span",
-				});
-
-				if (!this.plugin.settings.folderOverrides[childPath]) {
-					this.plugin.settings.folderOverrides[childPath] = {
-						folderPath: childPath,
-						bannerUrl: "",
-						showSubs: false,
-					};
-				}
-				const folderData =
-					this.plugin.settings.folderOverrides[childPath];
-
-				const input = flexRow.createEl("input", {
-					type: "text",
-					placeholder: isFolder
-						? "Custom Folder Banner URL..."
-						: "Custom PDF Banner URL...",
-					value: folderData?.bannerUrl ?? "",
-					cls: "gallery-tree-banner-input",
-				});
-
-				input.addEventListener("input", () => {
-					void (async () => {
-						if (this.plugin.settings.folderOverrides[childPath]) {
-							this.plugin.settings.folderOverrides[
-								childPath
-							]!.bannerUrl = input.value;
-							await this.plugin.saveSettings();
-						}
-					})();
-				});
-
-				if (isFolder) {
-					const hasSubfolders = child.children.some(
-						(item) =>
-							item instanceof TFolder ||
-							(item instanceof TFile && item.extension === "pdf"),
-					);
-
-					if (hasSubfolders) {
-						const isChildExpanded = !!folderData?.showSubs;
-						const nestedChildContainer = rowWrapper.createDiv({
-							cls: "gallery-tree-nested-container",
-						});
-						nestedChildContainer.setCssProps({
-							display: isChildExpanded ? "block" : "none",
-						});
-
-						const toggleBtn = flexRow.createEl("button", {
-							text: isChildExpanded ? "▲" : "▼",
-							cls: "gallery-tree-toggle-btn",
-						});
-
-						toggleBtn.addEventListener("click", () => {
-							void (async () => {
-								if (
-									this.plugin.settings.folderOverrides[
-										childPath
-									]
-								) {
-									const nextState =
-										!this.plugin.settings.folderOverrides[
-											childPath
-										]!.showSubs;
-									this.plugin.settings.folderOverrides[
-										childPath
-									]!.showSubs = nextState;
-									await this.plugin.saveSettings();
-
-									nestedChildContainer.setCssProps({
-										display: nextState ? "block" : "none",
-									});
-									toggleBtn.setText(nextState ? "▲" : "▼");
-								}
-							})();
-						});
-
-						this.displayFolderTree(
-							nestedChildContainer,
-							child,
-							level + 1,
-						);
-					}
-				}
+		// Indentation spacer
+		if (level > 0) {
+			const spacer = flexRow.createDiv({
+				cls: "gallery-tree-indent-line",
+			});
+			// Create visual indent guides
+			for (let i = 0; i < level; i++) {
+				spacer.createDiv({ cls: "gallery-tree-guide" });
 			}
+		}
+
+		// Toggle button or spacer
+		if (hasSubContent) {
+			const isExpanded = !!folderData?.showSubs;
+			const toggleBtn = flexRow.createEl("button", {
+				text: isExpanded ? "▾" : "▸",
+				cls: "gallery-tree-toggle-btn",
+				attr: {
+					"aria-label": isExpanded ? "Collapse" : "Expand",
+				},
+			});
+
+			toggleBtn.addEventListener("click", () => {
+				void (async () => {
+					const nestedContainer =
+						rowWrapper.nextElementSibling as HTMLElement;
+					const nextState = !folderData?.showSubs;
+					if (this.plugin.settings.folderOverrides[childPath]) {
+						this.plugin.settings.folderOverrides[
+							childPath
+						]!.showSubs = nextState;
+					}
+					await this.plugin.saveSettings();
+
+					if (
+						nestedContainer &&
+						nestedContainer.classList.contains(
+							"gallery-tree-nested-container",
+						)
+					) {
+						nestedContainer.style.display = nextState
+							? "block"
+							: "none";
+					}
+					toggleBtn.textContent = nextState ? "▾" : "▸";
+				})();
+			});
+		} else {
+			flexRow.createDiv({ cls: "gallery-tree-toggle-spacer" });
+		}
+
+		// Folder icon
+		flexRow.createSpan({
+			text: "📁",
+			cls: "gallery-tree-icon",
+		});
+
+		// Folder name
+		flexRow.createSpan({
+			text: folder.name,
+			cls: "gallery-tree-name",
+		});
+
+		// Banner input
+		const input = flexRow.createEl("input", {
+			type: "text",
+			placeholder: "Custom banner URL...",
+			value: folderData?.bannerUrl ?? "",
+			cls: "gallery-tree-banner-input",
+		});
+
+		input.addEventListener("input", () => {
+			void (async () => {
+				if (this.plugin.settings.folderOverrides[childPath]) {
+					this.plugin.settings.folderOverrides[childPath]!.bannerUrl =
+						input.value;
+					await this.plugin.saveSettings();
+				}
+			})();
+		});
+
+		// Item count badge
+		const itemCount = folder.children.length;
+		const countBadge = flexRow.createSpan({
+			text: String(itemCount),
+			cls: "gallery-tree-count-badge",
+		});
+		countBadge.setAttr(
+			"title",
+			`${itemCount} item${itemCount === 1 ? "" : "s"}`,
+		);
+
+		// Nested children
+		if (hasSubContent) {
+			const nestedContainer = containerEl.createDiv({
+				cls: "gallery-tree-nested-container",
+			});
+			nestedContainer.style.display = folderData?.showSubs
+				? "block"
+				: "none";
+
+			// Sort and separate children
+			const childFolders = folder.children.filter(
+				(child) => child instanceof TFolder,
+			) as TFolder[];
+			const childPDFs = folder.children.filter(
+				(child) => child instanceof TFile && child.extension === "pdf",
+			) as TFile[];
+
+			childFolders
+				.sort((a, b) =>
+					a.name.localeCompare(b.name, undefined, {
+						numeric: true,
+						sensitivity: "base",
+					}),
+				)
+				.forEach((childFolder) => {
+					this.displayFolderTree(
+						nestedContainer,
+						childFolder,
+						level + 1,
+					);
+				});
+
+			childPDFs
+				.sort((a, b) =>
+					a.name.localeCompare(b.name, undefined, {
+						numeric: true,
+						sensitivity: "base",
+					}),
+				)
+				.forEach((pdf) => {
+					const rowWrapper = nestedContainer.createDiv({
+						cls: "gallery-tree-row gallery-tree-pdf-row",
+					});
+					rowWrapper.setAttr("data-level", String(level + 1));
+					const flexRow = rowWrapper.createDiv({
+						cls: "gallery-tree-flex-row",
+					});
+					// Indentation
+					if (level + 1 > 0) {
+						const spacer = flexRow.createDiv({
+							cls: "gallery-tree-indent-line",
+						});
+						for (let i = 0; i < level + 1; i++) {
+							spacer.createDiv({ cls: "gallery-tree-guide" });
+						}
+					}
+					flexRow.createDiv({ cls: "gallery-tree-toggle-spacer" });
+					flexRow.createSpan({
+						text: "📄",
+						cls: "gallery-tree-icon gallery-tree-pdf-icon",
+					});
+					flexRow.createSpan({
+						text: pdf.name,
+						cls: "gallery-tree-name gallery-tree-pdf-name",
+					});
+					flexRow.createSpan({
+						text: "Uses default PDF banner",
+						cls: "gallery-tree-pdf-hint",
+					});
+				});
+		}
+	}
+
+	private displayPDFRow(containerEl: HTMLElement, pdf: TFile, level: number) {
+		const pdfPath = pdf.path;
+
+		if (!this.plugin.settings.folderOverrides[pdfPath]) {
+			this.plugin.settings.folderOverrides[pdfPath] = {
+				folderPath: pdfPath,
+				bannerUrl: "",
+				showSubs: false,
+			};
+		}
+
+		const pdfData = this.plugin.settings.folderOverrides[pdfPath];
+
+		const rowWrapper = containerEl.createDiv({
+			cls: "gallery-tree-row gallery-tree-pdf-row",
+		});
+		rowWrapper.setAttr("data-level", String(level));
+
+		const flexRow = rowWrapper.createDiv({
+			cls: "gallery-tree-flex-row",
+		});
+
+		// Indentation spacer
+		if (level > 0) {
+			const spacer = flexRow.createDiv({
+				cls: "gallery-tree-indent-line",
+			});
+			for (let i = 0; i < level; i++) {
+				spacer.createDiv({ cls: "gallery-tree-guide" });
+			}
+		}
+
+		// Spacer to align with folder toggle
+		flexRow.createDiv({ cls: "gallery-tree-toggle-spacer" });
+
+		// PDF icon
+		flexRow.createSpan({
+			text: "📄",
+			cls: "gallery-tree-icon gallery-tree-pdf-icon",
+		});
+
+		// PDF name
+		flexRow.createSpan({
+			text: pdf.name,
+			cls: "gallery-tree-name gallery-tree-pdf-name",
+		});
+
+		// Banner input
+		const input = flexRow.createEl("input", {
+			type: "text",
+			placeholder: "Custom PDF banner URL...",
+			value: pdfData?.bannerUrl ?? "",
+			cls: "gallery-tree-banner-input",
+		});
+
+		input.addEventListener("input", () => {
+			void (async () => {
+				if (this.plugin.settings.folderOverrides[pdfPath]) {
+					this.plugin.settings.folderOverrides[pdfPath]!.bannerUrl =
+						input.value;
+					await this.plugin.saveSettings();
+				}
+			})();
+		});
+
+		// PDF badge
+		flexRow.createSpan({
+			text: "PDF",
+			cls: "gallery-tree-pdf-badge",
 		});
 	}
 }
