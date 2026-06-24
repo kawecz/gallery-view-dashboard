@@ -530,7 +530,7 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 		// Banner input
 		const input = flexRow.createEl("input", {
 			type: "text",
-			placeholder: "Custom banner URL...",
+			placeholder: "anner URL or vault image path...",
 			value: folderData?.bannerUrl ?? "",
 			cls: "gallery-tree-banner-input",
 		});

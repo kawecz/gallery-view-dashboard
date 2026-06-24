@@ -30,6 +30,23 @@ A powerful, visual gallery plugin for Obsidian that transforms your vault folder
 - **Navigation:** Use the "Back" button in the gallery toolbar to return to the parent folder.
 - **Customization:** Edit banners via the plugin settings to match your vault's theme.
 
+## Folder Banners
+
+Banner fields support:
+
+- HTTPS image URLs
+- Vault-relative image paths
+- Obsidian wikilinks
+
+Examples:
+
+```
+14 Attachments/Folder Cover Photos/Concept Notes.jpeg
+```
+
+```
+[[Concept Notes.jpeg]]
+```
 ---
 
 ## 🛠️ Development

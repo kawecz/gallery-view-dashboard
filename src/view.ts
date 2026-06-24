@@ -12,6 +12,7 @@ import {
 	Setting,
 	Menu,
 	ViewStateResult,
+	normalizePath,
 } from "obsidian";
 import GalleryViewPlugin from "./main";
 import { SortMethod } from "./types";
@@ -305,6 +306,37 @@ export class GalleryDashboardView extends ItemView {
 	private isAddMenuOpen: boolean = false;
 	private shouldAnimate: boolean = true;
 	private pendingBanners: Map<string, string> = new Map();
+
+	private resolveBannerSrc(
+		raw: string | undefined | null,
+		sourcePath = this.currentPath,
+	): string {
+		const value = (raw ?? "").trim();
+		if (!value) return "";
+
+		if (/^(https?:|data:|app:)/i.test(value)) return value;
+
+		let vaultPath = value;
+		const wikiMatch = value.match(/^!?(?:\[\[([^|\]]+)(?:\|[^\]]+)?\]\])$/);
+		if (wikiMatch?.[1]) vaultPath = wikiMatch[1];
+
+		vaultPath = normalizePath(vaultPath.replace(/^\/+/, "").split("#")[0] ?? "");
+
+		const linkedFile = this.app.metadataCache.getFirstLinkpathDest(
+			vaultPath,
+			sourcePath,
+		);
+		if (linkedFile instanceof TFile) {
+			return this.app.vault.adapter.getResourcePath(linkedFile.path);
+		}
+
+		const directFile = this.app.vault.getAbstractFileByPath(vaultPath);
+		if (directFile instanceof TFile) {
+			return this.app.vault.adapter.getResourcePath(directFile.path);
+		}
+
+		return value;
+	}
 
 	constructor(leaf: WorkspaceLeaf, plugin: GalleryViewPlugin) {
 		super(leaf);
@@ -1363,8 +1395,13 @@ export class GalleryDashboardView extends ItemView {
 				folderMeta?.bannerUrl ||
 				this.plugin.settings.defaultFolderBanner;
 
+			const bannerSrc = this.resolveBannerSrc(
+				bannerUrl,
+				item.parent?.path ?? this.currentPath,
+			);
+
 			bannerContainer.createEl("img", {
-				attr: { src: bannerUrl, style: `object-fit: ${imgFitRule};` },
+				attr: { src: bannerSrc, style: `object-fit: ${imgFitRule};` },
 				cls: "gallery-view-banner-img",
 			});
 
@@ -1448,8 +1485,13 @@ export class GalleryDashboardView extends ItemView {
 					this.plugin.settings.defaultFileBanner;
 			}
 
+			const bannerSrc = this.resolveBannerSrc(
+				bannerUrl,
+				item.parent?.path ?? this.currentPath,
+			);
+
 			bannerContainer.createEl("img", {
-				attr: { src: bannerUrl, style: `object-fit: ${imgFitRule};` },
+				attr: { src: bannerSrc, style: `object-fit: ${imgFitRule};` },
 				cls: "gallery-view-banner-img",
 			});
 			const metaContainer = infoSection.createDiv({
