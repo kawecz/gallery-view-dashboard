@@ -1,16 +1,18 @@
-export type SortMethod = "alphabetical" | "properties" | "manual";
+export type SortMethod = "alphabetical" | "properties" | "manual" | "checkbox";
 
 export interface FolderOverride {
 	folderPath: string;
 	bannerUrl: string;
 	showSubs: boolean;
 	isManual?: boolean;
+	visibleProperties?: string[]; // Per-folder override
+	googleBooksApiKey?: string;
 }
 
 export interface GalleryViewSettings {
 	rootSearchPath: string;
 	lastOpenPath: string;
-	visibleProperties: string[];
+	visibleProperties: string[]; // Global default
 	showCheckboxes: boolean;
 	showFolderProgress: boolean;
 	defaultFolderBanner: string;
@@ -23,6 +25,12 @@ export interface GalleryViewSettings {
 	folderCardSizes: Record<string, number>;
 	addPropertiesOnCreate: boolean;
 	youtubeApiKey?: string;
+	tmdbApiKey?: string;
+	googleBooksApiKey?: string;
+	showYouTubeImport: boolean;
+	showBookImport: boolean;
+	showGameImport: boolean;
+	showMovieImport: boolean;
 }
 
 export const DEFAULT_SETTINGS: GalleryViewSettings = {
@@ -43,9 +51,13 @@ export const DEFAULT_SETTINGS: GalleryViewSettings = {
 	folderCardSizes: {},
 	addPropertiesOnCreate: true,
 	youtubeApiKey: "",
+	tmdbApiKey: "",
+	showYouTubeImport: true,
+	showBookImport: true,
+	showGameImport: true,
+	showMovieImport: true,
 };
 
-// Type for frontmatter to avoid using 'any'
 export interface FrontmatterData {
 	banner?: string;
 	tags?: string | string[];
@@ -53,25 +65,21 @@ export interface FrontmatterData {
 	[key: string]: unknown;
 }
 
-// Type for file cache with frontmatter
 export interface FileCacheWithFrontmatter {
 	frontmatter?: FrontmatterData;
 }
 
-// Type for folder progress metrics
 export interface FolderProgressMetrics {
 	total: number;
 	completed: number;
 	percent: number;
 }
 
-// Type for sort option in UI
 export interface SortOption {
 	value: SortMethod;
 	label: string;
 }
 
-// Type for YouTube oEmbed response
 export interface YouTubeOEmbedResponse {
 	title: string;
 	author_name: string;
@@ -87,8 +95,42 @@ export interface YouTubeOEmbedResponse {
 	thumbnail_height: number;
 }
 
-// Type for state management
 export interface GalleryViewState {
 	currentPath: string;
 	historyStack: string[];
+}
+
+// Book types for Open Library API
+export interface OpenLibraryBook {
+	title: string;
+	authors?: { name: string }[];
+	cover_i?: number;
+	isbn?: string[];
+	description?: string | { value: string };
+	subjects?: string[];
+	first_publish_year?: number;
+	publisher?: string[];
+}
+
+export interface SteamGameData {
+	name: string;
+	steam_appid: number;
+	developers?: string[];
+	publishers?: string[];
+	genres?: { description: string }[];
+	header_image?: string;
+	short_description?: string;
+	release_date?: { date: string };
+	metacritic?: { score: number };
+}
+
+export interface TMDBMovie {
+	id: number;
+	title: string;
+	overview: string;
+	poster_path: string | null;
+	release_date: string;
+	vote_average: number;
+	genres?: { name: string }[];
+	director?: string;
 }

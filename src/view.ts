@@ -6,287 +6,31 @@ import {
 	TFile,
 	EventRef,
 	setIcon,
-	requestUrl,
-	Modal,
-	App,
-	Setting,
 	Menu,
 	ViewStateResult,
 } from "obsidian";
 import GalleryViewPlugin from "./main";
 import { SortMethod } from "./types";
+import { CreateNoteModal, type PropertyEntry } from "./modals/create-note";
+import { CreateFolderModal } from "./modals/create-folder";
+import { RenameModal } from "./modals/rename";
+import { YouTubeUrlPromptModal, YouTubeConfirmModal } from "./modals/youtube";
+import { GoogleBookModal } from "./modals/google-book";
+import { SteamGameModal } from "./modals/steam-game";
+import { MovieModal } from "./modals/movie";
+import { extractYouTubeVideoId, getYouTubeTitle } from "./importers/youtube";
 
 export const VIEW_TYPE_GALLERY = "gallery-view-dashboard";
 
-function extractYouTubeVideoId(url: string): string | null {
-	const regex =
-		/(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{11})/;
-	const match = url.match(regex);
-	return match && match[1] ? match[1] : null;
-}
-
-class CreateNoteModal extends Modal {
-	private onSubmit: (title: string) => void;
-	constructor(app: App, onSubmit: (title: string) => void) {
-		super(app);
-		this.onSubmit = onSubmit;
+// Helper: simple string hash for deterministic tag colors
+function hashString(str: string): number {
+	let hash = 0;
+	for (let i = 0; i < str.length; i++) {
+		const char = str.charCodeAt(i);
+		hash = (hash << 5) - hash + char;
+		hash |= 0;
 	}
-	onOpen() {
-		const { contentEl } = this;
-		contentEl.empty();
-		contentEl.createEl("h3", {
-			text: "Create New Note",
-			attr: { style: "margin-top: 0;" },
-		});
-		let noteTitle = "Untitled Note";
-
-		new Setting(contentEl).setName("Note Title").addText((text) =>
-			text
-				.setPlaceholder("Untitled Note")
-				.setValue(noteTitle)
-				.onChange((value) => {
-					noteTitle = value;
-				}),
-		);
-
-		const footerBtnRow = contentEl.createDiv({
-			attr: {
-				style: "display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;",
-			},
-		});
-		const cancelBtn = footerBtnRow.createEl("button", { text: "Cancel" });
-		const confirmBtn = footerBtnRow.createEl("button", {
-			text: "Create",
-			cls: "mod-cta",
-		});
-		cancelBtn.addEventListener("click", () => this.close());
-		confirmBtn.addEventListener("click", () => {
-			this.onSubmit(noteTitle.trim());
-			this.close();
-		});
-	}
-	onClose() {
-		this.contentEl.empty();
-	}
-}
-
-class CreateFolderModal extends Modal {
-	private onSubmit: (folderName: string) => void;
-	constructor(app: App, onSubmit: (folderName: string) => void) {
-		super(app);
-		this.onSubmit = onSubmit;
-	}
-	onOpen() {
-		const { contentEl } = this;
-		contentEl.empty();
-		contentEl.createEl("h3", {
-			text: "Create New Folder",
-			attr: { style: "margin-top: 0;" },
-		});
-		let folderName = "New Folder";
-
-		new Setting(contentEl).setName("Folder Name").addText((text) =>
-			text
-				.setPlaceholder("New Folder")
-				.setValue(folderName)
-				.onChange((value) => {
-					folderName = value;
-				}),
-		);
-
-		const footerBtnRow = contentEl.createDiv({
-			attr: {
-				style: "display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;",
-			},
-		});
-		const cancelBtn = footerBtnRow.createEl("button", { text: "Cancel" });
-		const confirmBtn = footerBtnRow.createEl("button", {
-			text: "Create",
-			cls: "mod-cta",
-		});
-		cancelBtn.addEventListener("click", () => this.close());
-		confirmBtn.addEventListener("click", () => {
-			this.onSubmit(folderName.trim());
-			this.close();
-		});
-	}
-	onClose() {
-		this.contentEl.empty();
-	}
-}
-
-class RenameModal extends Modal {
-	private item: TAbstractFile;
-	private onConfirm: () => void;
-	constructor(app: App, item: TAbstractFile, onConfirm: () => void) {
-		super(app);
-		this.item = item;
-		this.onConfirm = onConfirm;
-	}
-	onOpen() {
-		const { contentEl } = this;
-		contentEl.empty();
-		contentEl.createEl("h3", {
-			text: `Rename: ${this.item.name}`,
-			attr: { style: "margin-top: 0;" },
-		});
-
-		let currentName =
-			this.item instanceof TFile ? this.item.basename : this.item.name;
-		const ext = this.item instanceof TFile ? `.${this.item.extension}` : "";
-
-		new Setting(contentEl).setName("New Name").addText((text) =>
-			text.setValue(currentName).onChange((value) => {
-				currentName = value.trim();
-			}),
-		);
-
-		const footerBtnRow = contentEl.createDiv({
-			attr: {
-				style: "display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;",
-			},
-		});
-		const cancelBtn = footerBtnRow.createEl("button", { text: "Cancel" });
-		const confirmBtn = footerBtnRow.createEl("button", {
-			text: "Rename",
-			cls: "mod-cta",
-		});
-
-		cancelBtn.addEventListener("click", () => this.close());
-		confirmBtn.addEventListener("click", () => {
-			void (async () => {
-				if (!currentName) return;
-				const parentPath = this.item.parent
-					? this.item.parent.path
-					: "";
-				const trailingSlash =
-					parentPath === "/" || !parentPath ? "" : "/";
-				const newPath = `${parentPath}${trailingSlash}${currentName}${ext}`;
-				try {
-					await this.app.fileManager.renameFile(this.item, newPath);
-					this.onConfirm();
-				} catch (err) {
-					console.error("Failed to rename item:", err);
-				}
-				this.close();
-			})();
-		});
-	}
-	onClose() {
-		this.contentEl.empty();
-	}
-}
-
-class YouTubeUrlPromptModal extends Modal {
-	private onSubmit: (url: string) => void;
-	constructor(app: App, onSubmit: (url: string) => void) {
-		super(app);
-		this.onSubmit = onSubmit;
-	}
-	onOpen() {
-		const { contentEl } = this;
-		contentEl.empty();
-		contentEl.createEl("h3", {
-			text: "Import from YouTube",
-			attr: { style: "margin-top: 0;" },
-		});
-		let inputUrl = "";
-		new Setting(contentEl).setName("YouTube Link URL").addText((text) =>
-			text
-				.setPlaceholder("https://www.youtube.com/watch?v=...")
-				.onChange((value) => {
-					inputUrl = value;
-				}),
-		);
-
-		const footerBtnRow = contentEl.createDiv({
-			attr: {
-				style: "display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;",
-			},
-		});
-		const cancelBtn = footerBtnRow.createEl("button", { text: "Cancel" });
-		const confirmBtn = footerBtnRow.createEl("button", {
-			text: "Next",
-			cls: "mod-cta",
-		});
-		cancelBtn.addEventListener("click", () => this.close());
-		confirmBtn.addEventListener("click", () => {
-			if (inputUrl.trim()) this.onSubmit(inputUrl.trim());
-			this.close();
-		});
-	}
-	onClose() {
-		this.contentEl.empty();
-	}
-}
-
-class YouTubeConfirmModal extends Modal {
-	private videoId: string;
-	private defaultTitle: string;
-	private onConfirm: (finalTitle: string, thumbnailUrl: string) => void;
-
-	constructor(
-		app: App,
-		videoUrl: string,
-		videoId: string,
-		defaultTitle: string,
-		onConfirm: (finalTitle: string, thumbnailUrl: string) => void,
-	) {
-		super(app);
-		this.videoId = videoId;
-		this.defaultTitle = defaultTitle.replace(/[\\/:?*"<>|]/g, " ");
-		this.onConfirm = onConfirm;
-	}
-
-	onOpen() {
-		const { contentEl } = this;
-		contentEl.empty();
-		contentEl.createEl("h3", { text: "Confirm YouTube Asset Details" });
-		const titleRow = contentEl.createDiv({
-			attr: {
-				style: "display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px;",
-			},
-		});
-		const titleInput = titleRow.createEl("input", {
-			type: "text",
-			value: this.defaultTitle,
-			attr: { style: "width: 100%; padding: 6px;" },
-		});
-		const previewContainer = contentEl.createDiv({
-			attr: {
-				style: "position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 6px; overflow: hidden; margin-bottom: 20px;",
-			},
-		});
-		const thumbnailUrl = `https://img.youtube.com/vi/${this.videoId}/maxresdefault.jpg`;
-		previewContainer.createEl("img", {
-			attr: {
-				src: thumbnailUrl,
-				style: "width: 100%; height: 100%; object-fit: cover;",
-			},
-		});
-
-		const footerBtnRow = contentEl.createDiv({
-			attr: {
-				style: "display: flex; justify-content: flex-end; gap: 12px;",
-			},
-		});
-		const cancelBtn = footerBtnRow.createEl("button", { text: "Cancel" });
-		const confirmBtn = footerBtnRow.createEl("button", {
-			text: "OK",
-			cls: "mod-cta",
-		});
-		cancelBtn.addEventListener("click", () => this.close());
-		confirmBtn.addEventListener("click", () => {
-			this.onConfirm(
-				titleInput.value.trim() || this.defaultTitle,
-				thumbnailUrl,
-			);
-			this.close();
-		});
-	}
-	onClose() {
-		this.contentEl.empty();
-	}
+	return Math.abs(hash);
 }
 
 export class GalleryDashboardView extends ItemView {
@@ -304,7 +48,6 @@ export class GalleryDashboardView extends ItemView {
 	private searchQuery: string = "";
 	private isAddMenuOpen: boolean = false;
 	private shouldAnimate: boolean = true;
-	private pendingBanners: Map<string, string> = new Map();
 
 	constructor(leaf: WorkspaceLeaf, plugin: GalleryViewPlugin) {
 		super(leaf);
@@ -351,40 +94,6 @@ export class GalleryDashboardView extends ItemView {
 			settings.folderCardSizes = {};
 		}
 		return settings.folderCardSizes[activeKey] || 200;
-	}
-
-	private updateCardCheckbox(file: TFile) {
-		const cache = this.app.metadataCache.getFileCache(file);
-		const hasCheckbox =
-			cache?.frontmatter && "checkbox" in cache.frontmatter;
-
-		if (!hasCheckbox) return;
-
-		const checkboxValue = Boolean(cache?.frontmatter?.checkbox);
-
-		// Find the card for this file
-		const cards = this.contentEl.querySelectorAll(".gallery-view-card");
-		cards.forEach((card) => {
-			const cardElement = card as HTMLElement & { itemName?: string };
-			if (cardElement.itemName === file.name) {
-				// Find the checkbox in this card
-				const checkbox = cardElement.querySelector(
-					'input[type="checkbox"]',
-				) as HTMLInputElement;
-				if (checkbox) {
-					// Only update if the state is different
-					if (checkbox.checked !== checkboxValue) {
-						checkbox.checked = checkboxValue;
-
-						// Add a subtle animation
-						checkbox.setCssProps({ transform: "scale(1.3)" });
-						window.setTimeout(() => {
-							checkbox.setCssProps({ transform: "scale(1)" });
-						}, 150);
-					}
-				}
-			}
-		});
 	}
 
 	private rebuildHistoryStack() {
@@ -436,7 +145,6 @@ export class GalleryDashboardView extends ItemView {
 					file instanceof TFile &&
 					(file.parent?.path || "") === (this.currentPath || "")
 				) {
-					// Full re-render without animations
 					this.shouldAnimate = false;
 					await this.renderCanvas();
 					this.shouldAnimate = true;
@@ -543,62 +251,6 @@ export class GalleryDashboardView extends ItemView {
 		};
 	}
 
-	private async getYouTubeTitle(url: string): Promise<string | null> {
-		try {
-			const res = await requestUrl({
-				url: `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`,
-			});
-			if (res.status === 200 && res.json) {
-				return (res.json as { title: string }).title;
-			}
-		} catch {
-			// Intentionally empty - return null on failure
-		}
-		return null;
-	}
-
-	private async getYouTubeDuration(url: string): Promise<string | null> {
-		const apiKey = this.plugin.settings.youtubeApiKey;
-		if (!apiKey) return null;
-
-		const videoId = extractYouTubeVideoId(url);
-		if (!videoId) return null;
-
-		try {
-			const res = await requestUrl({
-				url: `https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${videoId}&key=${apiKey}`,
-			});
-			if (res.status === 200 && res.json) {
-				const data = res.json as {
-					items: { contentDetails: { duration: string } }[];
-				};
-				const firstItem = data.items?.[0];
-				if (firstItem?.contentDetails?.duration) {
-					return this.parseISODuration(
-						firstItem.contentDetails.duration,
-					);
-				}
-			}
-		} catch {
-			// Silently fail — duration is optional
-		}
-		return null;
-	}
-
-	private parseISODuration(isoDuration: string): string {
-		const match = isoDuration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-		if (!match) return "?";
-
-		const hours = parseInt(match[1] ?? "0");
-		const minutes = parseInt(match[2] ?? "0");
-		const seconds = parseInt(match[3] ?? "0");
-
-		if (hours > 0) {
-			return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-		}
-		return `${minutes}:${String(seconds).padStart(2, "0")}`;
-	}
-
 	public async renderCanvas() {
 		const container = this.contentEl;
 		container.empty();
@@ -689,9 +341,6 @@ export class GalleryDashboardView extends ItemView {
 		toolbar
 			.createDiv({
 				cls: "gallery-view-breadcrumb",
-				attr: {
-					style: "font-family: var(--font-monospace), monospace; font-size: var(--font-ui-smaller, 0.85em); color: var(--text-muted); opacity: 0.6; letter-spacing: 0.5px; white-space: normal; word-break: break-word; width: 100%; line-height: 1.4;",
-				},
 			})
 			.setText(`Browsing: ${breadcrumbPath}`);
 
@@ -704,9 +353,6 @@ export class GalleryDashboardView extends ItemView {
 		const backBtn = leftGroup.createEl("button", {
 			text: "← Back",
 			cls: "gallery-view-back-btn mod-cta",
-			attr: {
-				style: "cursor: pointer; padding: 5px 12px; font-size: 0.85em; font-weight: 500; border-radius: 4px;",
-			},
 		});
 
 		if (this.historyStack.length === 0) {
@@ -764,155 +410,94 @@ export class GalleryDashboardView extends ItemView {
 			cls: "mod-cta gallery-view-add-btn",
 			attr: { style: "padding: 5px 12px; font-size: 0.85em;" },
 		});
-		const popoverMenuEl = actionGroupWrapper.createDiv({
+
+		// Create popover on the container (canvas) instead of the button wrapper
+		const popoverMenuEl = container.createDiv({
 			attr: {
-				style: `display: none; position: absolute; top: 100%; left: 0; background: var(--background-secondary-alt); border: 1px solid var(--background-modifier-border); border-radius: 6px; padding: 6px; flex-direction: column; gap: 4px; z-index: 999; min-width: 165px;`,
+				style: "display: none; position: fixed; background: var(--background-secondary-alt); border: 1px solid var(--background-modifier-border); border-radius: 8px; padding: 8px; flex-direction: column; gap: 4px; z-index: 9999; min-width: 175px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);",
 			},
 		});
 
+		// Position the popover relative to the button
 		addDropdownToggleBtn.addEventListener("click", (e: MouseEvent) => {
 			e.stopPropagation();
 			this.isAddMenuOpen = !this.isAddMenuOpen;
-			popoverMenuEl.setCssProps({
-				display: this.isAddMenuOpen ? "flex" : "none",
-			});
-		});
 
-		const createNoteOpt = popoverMenuEl.createDiv({
-			text: "📝 New Note",
-			cls: "gallery-popover-menu-item",
-		});
-		createNoteOpt.addEventListener("mousedown", (e: MouseEvent) => {
-			e.preventDefault();
-			e.stopPropagation();
-			this.isAddMenuOpen = false;
-			popoverMenuEl.setCssProps({ display: "none" });
-			new CreateNoteModal(this.app, (name) => {
-				void (async () => {
-					const uniquePath = this.generateUniquePath(name);
-
-					let fileContents = "";
-					if (this.plugin.settings.addPropertiesOnCreate) {
-						fileContents = `---\ncreated: ${new Date().toISOString().split("T")[0]}\n---\n\n`;
-					} else {
-						fileContents = `\n`;
-					}
-
-					await this.app.vault.create(uniquePath, fileContents);
-
-					// Force metadata cache to update
-					const file =
-						this.app.vault.getAbstractFileByPath(uniquePath);
-					if (file instanceof TFile) {
-						this.app.metadataCache.getFileCache(file);
-					}
-
-					// Small delay to ensure cache is ready
-					await new Promise((resolve) =>
-						window.setTimeout(resolve, 50),
-					);
-
-					await this.renderCanvas();
-				})();
-			}).open();
-		});
-
-		const createFolderOpt = popoverMenuEl.createDiv({
-			text: "📁 New Folder",
-			cls: "gallery-popover-menu-item",
-		});
-		// Find the createFolderOpt event listener and replace the folder creation logic:
-
-		createFolderOpt.addEventListener("mousedown", (e: MouseEvent) => {
-			e.preventDefault();
-			e.stopPropagation();
-			this.isAddMenuOpen = false;
-			popoverMenuEl.setCssProps({ display: "none" });
-
-			new CreateFolderModal(this.app, (folderName) => {
-				if (!folderName) return;
-				void (async () => {
-					// Use the new method to get a unique folder path
-					const folderPath =
-						this.generateUniqueFolderPath(folderName);
-					await this.app.vault.createFolder(folderPath);
-					await this.renderCanvas();
-				})();
-			}).open();
-		});
-		const importYoutubeOpt = popoverMenuEl.createDiv({
-			text: "🎬 Import YouTube",
-			cls: "gallery-popover-menu-item",
-		});
-		importYoutubeOpt.addEventListener("mousedown", (e: MouseEvent) => {
-			e.preventDefault();
-			e.stopPropagation();
-			this.isAddMenuOpen = false;
-			popoverMenuEl.setCssProps({ display: "none" });
-			new YouTubeUrlPromptModal(this.app, (url) => {
-				const vid = extractYouTubeVideoId(url);
-				if (!vid) return;
-				void this.getYouTubeTitle(url).then((title) => {
-					const finalT = title || "YouTube " + Date.now();
-					new YouTubeConfirmModal(
-						this.app,
-						url,
-						vid,
-						finalT,
-						(fTitle, thumb) => {
-							void (async () => {
-								const uniquePath =
-									this.generateUniquePath(fTitle);
-
-								// Fetch duration if API key is available
-								const duration =
-									await this.getYouTubeDuration(url);
-
-								const iframeEmbed = `<iframe title="${fTitle.replace(/"/g, "&quot;")}" src="https://www.youtube.com/embed/${vid}?feature=oembed" height="113" width="200" allowfullscreen="" allow="fullscreen" style="aspect-ratio: 1.76991 / 1; width: 100%; height: 100%;"></iframe>`;
-
-								let frontmatterLines = `banner: "${thumb}"`;
-								if (duration) {
-									frontmatterLines += `\nduration: "${duration}"`;
-								}
-								if (
-									this.plugin.settings.addPropertiesOnCreate
-								) {
-									frontmatterLines += `\ncreated: ${new Date().toISOString().split("T")[0]}`;
-								}
-
-								const fileContents = `---\n${frontmatterLines}\n---\n\n${iframeEmbed}\n`;
-
-								const newFile = await this.app.vault.create(
-									uniquePath,
-									fileContents,
-								);
-
-								// Wait for the metadata cache to have the banner
-								let attempts = 0;
-								while (attempts < 20) {
-									const cache =
-										this.app.metadataCache.getFileCache(
-											newFile,
-										);
-									if (
-										cache?.frontmatter &&
-										cache.frontmatter.banner
-									) {
-										break;
-									}
-									await new Promise((resolve) =>
-										window.setTimeout(resolve, 150),
-									);
-									attempts++;
-								}
-
-								await this.renderCanvas();
-							})();
-						},
-					).open();
+			if (this.isAddMenuOpen) {
+				const btnRect = addDropdownToggleBtn.getBoundingClientRect();
+				popoverMenuEl.setCssProps({
+					display: "flex",
+					top: `${btnRect.bottom + 4}px`,
+					left: `${btnRect.left}px`,
 				});
-			}).open();
+			} else {
+				popoverMenuEl.setCssProps({ display: "none" });
+			}
 		});
+
+		// Add menu items
+		this.createPopoverMenuItem(popoverMenuEl, "📝 New Note", () => {
+			void this.openCreateNoteModal();
+		});
+
+		this.createPopoverMenuItem(popoverMenuEl, "📁 New Folder", () => {
+			this.openCreateFolderModal();
+		});
+
+		if (this.plugin.settings.showYouTubeImport) {
+			this.createPopoverMenuItem(
+				popoverMenuEl,
+				"🎬 Import YouTube",
+				() => {
+					this.openYouTubeImport();
+				},
+			);
+		}
+
+		if (
+			this.plugin.settings.showMovieImport &&
+			this.plugin.settings.tmdbApiKey
+		) {
+			this.createPopoverMenuItem(popoverMenuEl, "🎬 Import Movie", () => {
+				const currentPath = this.currentPath || "";
+				new MovieModal(
+					this.app,
+					this.plugin.settings.tmdbApiKey || "",
+					(movie) => {
+						void this.plugin.createMovieNote(movie, currentPath);
+						window.setTimeout(() => void this.renderCanvas(), 300);
+					},
+				).open();
+			});
+		}
+
+		if (
+			this.plugin.settings.showBookImport &&
+			this.plugin.settings.googleBooksApiKey
+		) {
+			this.createPopoverMenuItem(popoverMenuEl, "📚 Import Book", () => {
+				const currentPath = this.currentPath || "";
+				new GoogleBookModal(
+					this.app,
+					this.plugin.settings.googleBooksApiKey || "",
+					(book) => {
+						void this.plugin.createBookNote(book, currentPath);
+						window.setTimeout(() => void this.renderCanvas(), 300);
+					},
+				).open();
+			});
+		}
+
+		if (this.plugin.settings.showGameImport) {
+			this.createPopoverMenuItem(popoverMenuEl, "🎮 Import Game", () => {
+				const currentPath = this.currentPath || "";
+				new SteamGameModal(this.app, (game) => {
+					void this.plugin.createGameNote(game, currentPath);
+					window.setTimeout(() => void this.renderCanvas(), 300);
+				}).open();
+			});
+		}
+
 		// RIGHT CONTROLS
 		const activeMethodKey = this.currentPath || "root";
 		const currentSortMethod =
@@ -931,6 +516,7 @@ export class GalleryDashboardView extends ItemView {
 		const methods: { value: SortMethod; label: string }[] = [
 			{ value: "alphabetical", label: "🔤 Alphabetical" },
 			{ value: "properties", label: "🏷️ Properties (Tags)" },
+			{ value: "checkbox", label: "✅ Checkbox" },
 			{ value: "manual", label: "🎯 Manual Reorder" },
 		];
 		methods.forEach((m) => {
@@ -1015,10 +601,299 @@ export class GalleryDashboardView extends ItemView {
 			}
 		});
 
+		grid.addEventListener("contextmenu", (e: MouseEvent) => {
+			const target = e.target as HTMLElement;
+			if (target.closest(".gallery-view-card")) return;
+			e.preventDefault();
+			const menu = new Menu();
+
+			menu.addItem((item) => {
+				item.setTitle("📝 New Note")
+					.setIcon("file-plus")
+					.onClick(() => void this.openCreateNoteModal());
+			});
+
+			menu.addItem((item) => {
+				item.setTitle("📁 New Folder")
+					.setIcon("folder-plus")
+					.onClick(() => this.openCreateFolderModal());
+			});
+
+			menu.addSeparator();
+
+			if (this.plugin.settings.showYouTubeImport) {
+				menu.addItem((item) => {
+					item.setTitle("🎬 Import YouTube")
+						.setIcon("youtube")
+						.onClick(() => this.openYouTubeImport());
+				});
+			}
+
+			if (
+				this.plugin.settings.showBookImport &&
+				this.plugin.settings.googleBooksApiKey
+			) {
+				menu.addItem((item) => {
+					item.setTitle("📚 Import Book")
+						.setIcon("book")
+						.onClick(() => {
+							const currentPath = this.currentPath || "";
+							new GoogleBookModal(
+								this.app,
+								this.plugin.settings.googleBooksApiKey || "",
+								(book) => {
+									void this.plugin.createBookNote(
+										book,
+										currentPath,
+									);
+									window.setTimeout(
+										() => void this.renderCanvas(),
+										300,
+									);
+								},
+							).open();
+						});
+				});
+			}
+
+			if (this.plugin.settings.showGameImport) {
+				menu.addItem((item) => {
+					item.setTitle("🎮 Import Game")
+						.setIcon("gamepad")
+						.onClick(() => {
+							const currentPath = this.currentPath || "";
+							new SteamGameModal(this.app, (game) => {
+								void this.plugin.createGameNote(
+									game,
+									currentPath,
+								);
+								window.setTimeout(
+									() => void this.renderCanvas(),
+									300,
+								);
+							}).open();
+						});
+				});
+			}
+
+			if (
+				this.plugin.settings.showMovieImport &&
+				this.plugin.settings.tmdbApiKey
+			) {
+				menu.addItem((item) => {
+					item.setTitle("🎬 Import Movie")
+						.setIcon("film")
+						.onClick(() => {
+							const currentPath = this.currentPath || "";
+							new MovieModal(
+								this.app,
+								this.plugin.settings.tmdbApiKey || "",
+								(movie) => {
+									void this.plugin.createMovieNote(
+										movie,
+										currentPath,
+									);
+									window.setTimeout(
+										() => void this.renderCanvas(),
+										300,
+									);
+								},
+							).open();
+						});
+				});
+			}
+
+			menu.showAtPosition({ x: e.clientX, y: e.clientY });
+		});
+
 		await this.renderItemsGrid(grid);
 	}
 
-	// UPDATED: Added grid.empty() and grid.removeClass("fresh-load") at the beginning
+	private createPopoverMenuItem(
+		container: HTMLElement,
+		label: string,
+		onClick: () => void,
+	) {
+		const item = container.createDiv({
+			text: label,
+			cls: "gallery-popover-menu-item",
+		});
+		item.addEventListener("mousedown", (e: MouseEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+			this.isAddMenuOpen = false;
+			// Find the popover and hide it
+			const popover = container.closest(
+				'[style*="flex-direction: column"]',
+			) as HTMLElement;
+			if (popover) popover.setCssProps({ display: "none" });
+			onClick();
+		});
+	}
+
+	private async openCreateNoteModal() {
+		const defaultProperties: PropertyEntry[] = [];
+		const currentFolder = this.currentPath || "";
+
+		if (this.plugin.settings.addPropertiesOnCreate) {
+			const dateStr = new Date().toISOString().split("T")[0];
+			if (dateStr) {
+				defaultProperties.push({ key: "created", value: dateStr });
+			}
+		}
+
+		// Try to detect Folder Auto Properties rules — needs await
+		const detectedProps =
+			await this.detectFolderAutoProperties(currentFolder);
+		detectedProps.forEach((prop) => {
+			if (!defaultProperties.some((p) => p.key === prop.key)) {
+				defaultProperties.push(prop);
+			}
+		});
+
+		new CreateNoteModal(
+			this.app,
+			(title, properties) => {
+				void (async () => {
+					const uniquePath = this.generateUniquePath(title);
+					const fmLines: string[] = [];
+					properties.forEach((prop) => {
+						fmLines.push(`${prop.key}: ${prop.value}`);
+					});
+					const fileContents =
+						fmLines.length > 0
+							? `---\n${fmLines.join("\n")}\n---\n\n`
+							: `\n`;
+					await this.app.vault.create(uniquePath, fileContents);
+					const file =
+						this.app.vault.getAbstractFileByPath(uniquePath);
+					if (file instanceof TFile) {
+						this.app.metadataCache.getFileCache(file);
+					}
+					await new Promise((resolve) =>
+						window.setTimeout(resolve, 50),
+					);
+					await this.renderCanvas();
+				})();
+			},
+			defaultProperties,
+			currentFolder,
+		).open();
+	}
+
+	/*
+	 * Detects what properties Folder Auto Properties would add to a note
+	 * in the given folder by reading its data.json settings.
+	 */
+	private async detectFolderAutoProperties(
+		targetFolder: string,
+	): Promise<PropertyEntry[]> {
+		const properties: PropertyEntry[] = [];
+
+		try {
+			// Check if the plugin folder exists
+			const configDir = this.app.vault.configDir;
+			const pluginFolder = this.app.vault.getAbstractFileByPath(
+				`${configDir}/plugins/folder-auto-properties`,
+			);
+			if (!(pluginFolder instanceof TFolder)) return properties;
+
+			const dataFile = this.app.vault.getAbstractFileByPath(
+				`${configDir}/plugins/folder-auto-properties/data.json`,
+			);
+			if (!(dataFile instanceof TFile)) return properties;
+
+			// Use the cached read or read the file
+			this.app.vault.read(dataFile).then((content) => {
+				try {
+					const settings = JSON.parse(content) as {
+						rules?: {
+							folder: string;
+							properties: Record<string, unknown>;
+						}[];
+					};
+
+					if (settings.rules && Array.isArray(settings.rules)) {
+						// Find rules that match the target folder
+						for (const rule of settings.rules) {
+							// Check if targetFolder matches or is inside the rule's folder
+							if (
+								targetFolder === rule.folder ||
+								targetFolder.startsWith(rule.folder + "/")
+							) {
+								if (rule.properties) {
+									for (const [key, value] of Object.entries(
+										rule.properties,
+									)) {
+										properties.push({
+											key,
+											value: String(value),
+										});
+									}
+								}
+							}
+						}
+					}
+				} catch {
+					// Invalid JSON
+				}
+			});
+		} catch {
+			// Plugin not found or can't read
+		}
+
+		return properties;
+	}
+
+	private openCreateFolderModal() {
+		new CreateFolderModal(this.app, (folderName) => {
+			if (!folderName) return;
+			void (async () => {
+				const folderPath = this.generateUniqueFolderPath(folderName);
+				await this.app.vault.createFolder(folderPath);
+				await this.renderCanvas();
+			})();
+		}).open();
+	}
+
+	private async openYouTubeImport() {
+		const currentPath = this.currentPath || "";
+
+		// Detect Folder Auto Properties rules for this folder
+		const detectedProps =
+			await this.plugin.detectFolderProperties(currentPath);
+
+		new YouTubeUrlPromptModal(this.app, (url) => {
+			const vid = extractYouTubeVideoId(url);
+			if (!vid) return;
+			void getYouTubeTitle(url).then((title) => {
+				const finalT = title || "YouTube " + Date.now();
+
+				// Pass only detected props — YouTubeConfirmModal will add banner/type/duration
+				new YouTubeConfirmModal(
+					this.app,
+					url,
+					vid,
+					finalT,
+					(fTitle, thumb) => {
+						void this.plugin.createYouTubeNote(
+							url,
+							vid,
+							fTitle,
+							thumb,
+							currentPath,
+						);
+						window.setTimeout(() => void this.renderCanvas(), 500);
+					},
+					detectedProps, // <-- just the detected props, no placeholders
+					this.plugin.settings.youtubeApiKey || "",
+					this.plugin.settings.addPropertiesOnCreate,
+				).open();
+			});
+		}).open();
+	}
+
+	// UPDATED: renderItemsGrid with checkbox sort
 	private async renderItemsGrid(grid: HTMLDivElement) {
 		grid.empty();
 
@@ -1084,6 +959,29 @@ export class GalleryDashboardView extends ItemView {
 						})
 					);
 				});
+			} else if (currentSortMethod === "checkbox") {
+				validItems.sort((a, b) => {
+					const getChecked = (item: TAbstractFile): number => {
+						if (!(item instanceof TFile)) return 2; // folders in middle
+						const cache = this.app.metadataCache.getFileCache(item);
+						const fm = cache?.frontmatter;
+						if (!fm) return 2;
+						const checkboxVal = fm.checkbox;
+						if (checkboxVal === undefined || checkboxVal === null)
+							return 2;
+						return checkboxVal === true ||
+							String(checkboxVal).toLowerCase() === "true"
+							? 0
+							: 1;
+					};
+					const ca = getChecked(a);
+					const cb = getChecked(b);
+					if (ca !== cb) return ca - cb;
+					return a.name.localeCompare(b.name, undefined, {
+						numeric: true,
+						sensitivity: "base",
+					});
+				});
 			} else if (currentSortMethod === "manual") {
 				let savedOrder =
 					this.plugin.settings.folderManualOrders[activeMethodKey];
@@ -1129,7 +1027,6 @@ export class GalleryDashboardView extends ItemView {
 						currentSortMethod === "manual",
 					);
 
-					// Control animation based on shouldAnimate flag
 					if (card) {
 						if (this.shouldAnimate) {
 							card.setCssProps({
@@ -1173,127 +1070,91 @@ export class GalleryDashboardView extends ItemView {
 				this.cleanupDragIndicators();
 			});
 
-			if (isManualSort && !this.isDragLocked) {
-				card.setAttribute("draggable", "true");
-				card.setCssProps({ cursor: "grab" });
+			card.addEventListener("dragover", (e: DragEvent) => {
+				e.preventDefault();
+				if (!this.draggedItemPath || this.draggedItemPath === item.name)
+					return;
 
-				card.addEventListener("dragstart", (e) => {
-					this.draggedItemPath = item.name;
-					card.setCssProps({ opacity: "0.3" });
-					if (e.dataTransfer) {
-						e.dataTransfer.effectAllowed = "move";
-						e.dataTransfer.setData("text/plain", item.name);
-					}
+				if (!this.indicatorEl) {
+					this.indicatorEl = grid.createDiv({
+						cls: "gallery-view-drop-indicator",
+					});
+				}
+
+				const cardRect = card.getBoundingClientRect();
+				const gridRect = grid.getBoundingClientRect();
+				const relativeMouseX = e.clientX - cardRect.left;
+				this.insertAfterTarget = relativeMouseX > cardRect.width / 2;
+				this.currentTargetName = item.name;
+
+				const indicatorTop = cardRect.top - gridRect.top;
+				const indicatorHeight = cardRect.height;
+				let indicatorLeft = cardRect.left - gridRect.left;
+
+				if (this.insertAfterTarget) {
+					indicatorLeft += cardRect.width + 8;
+				} else {
+					indicatorLeft -= 10;
+				}
+
+				this.indicatorEl.setCssProps({
+					top: `${indicatorTop}px`,
+					height: `${indicatorHeight}px`,
+					left: `${indicatorLeft}px`,
+					display: "block",
 				});
+			});
 
-				card.addEventListener("dragend", () => {
-					this.cleanupDragIndicators();
-				});
+			card.addEventListener("dragleave", () => {
+				card.removeClass("gallery-view-drop-target");
+			});
 
-				card.addEventListener("dragover", (e: DragEvent) => {
+			card.addEventListener("drop", (e) => {
+				void (async () => {
 					e.preventDefault();
-					if (
-						!this.draggedItemPath ||
-						this.draggedItemPath === item.name
-					)
+					const sourceName =
+						this.draggedItemPath ||
+						(e.dataTransfer
+							? e.dataTransfer.getData("text/plain")
+							: null);
+					const targetName = this.currentTargetName;
+
+					this.cleanupDragIndicators();
+					if (!sourceName || !targetName || sourceName === targetName)
 						return;
 
-					if (!this.indicatorEl) {
-						this.indicatorEl = grid.createDiv({
-							cls: "gallery-view-drop-indicator",
-						});
-					}
+					const activeMethodKey = this.currentPath || "root";
 
-					const cardRect = card.getBoundingClientRect();
-					const gridRect = grid.getBoundingClientRect();
-					const relativeMouseX = e.clientX - cardRect.left;
-					this.insertAfterTarget =
-						relativeMouseX > cardRect.width / 2;
-					this.currentTargetName = item.name;
-
-					const indicatorTop = cardRect.top - gridRect.top;
-					const indicatorHeight = cardRect.height;
-					let indicatorLeft = cardRect.left - gridRect.left;
-
-					if (this.insertAfterTarget) {
-						indicatorLeft += cardRect.width + 8;
-					} else {
-						indicatorLeft -= 10;
-					}
-
-					this.indicatorEl.setCssProps({
-						top: `${indicatorTop}px`,
-						height: `${indicatorHeight}px`,
-						left: `${indicatorLeft}px`,
-						display: "block",
-					});
-				});
-
-				card.addEventListener("dragleave", () => {
-					card.removeClass("gallery-view-drop-target");
-				});
-
-				card.addEventListener("drop", (e) => {
-					void (async () => {
-						e.preventDefault();
-						const sourceName =
-							this.draggedItemPath ||
-							(e.dataTransfer
-								? e.dataTransfer.getData("text/plain")
-								: null);
-						const targetName = this.currentTargetName;
-
-						this.cleanupDragIndicators();
-						if (
-							!sourceName ||
-							!targetName ||
-							sourceName === targetName
+					const itemsList = Array.from(grid.children)
+						.map(
+							(el) =>
+								(el as HTMLElement & { itemName?: string })
+									.itemName,
 						)
-							return;
+						.filter(Boolean) as string[];
 
-						const activeMethodKey = this.currentPath || "root";
+					const currentSavedOrder = this.plugin.settings
+						.folderManualOrders[activeMethodKey] || [...itemsList];
+					const sourceIndex = currentSavedOrder.indexOf(sourceName);
+					if (sourceIndex !== -1)
+						currentSavedOrder.splice(sourceIndex, 1);
 
-						const itemsList = Array.from(grid.children)
-							.map(
-								(el) =>
-									(el as HTMLElement & { itemName?: string })
-										.itemName,
-							)
-							.filter(Boolean) as string[];
+					let targetIndex = currentSavedOrder.indexOf(targetName);
+					if (this.insertAfterTarget) targetIndex += 1;
 
-						const currentSavedOrder = this.plugin.settings
-							.folderManualOrders[activeMethodKey] || [
-							...itemsList,
-						];
-						const sourceIndex =
-							currentSavedOrder.indexOf(sourceName);
-						if (sourceIndex !== -1)
-							currentSavedOrder.splice(sourceIndex, 1);
+					if (targetIndex !== -1) {
+						currentSavedOrder.splice(targetIndex, 0, sourceName);
+						this.plugin.settings.folderManualOrders[
+							activeMethodKey
+						] = currentSavedOrder;
+						await this.plugin.saveSettings();
 
-						let targetIndex = currentSavedOrder.indexOf(targetName);
-						if (this.insertAfterTarget) targetIndex += 1;
-
-						if (targetIndex !== -1) {
-							currentSavedOrder.splice(
-								targetIndex,
-								0,
-								sourceName,
-							);
-							this.plugin.settings.folderManualOrders[
-								activeMethodKey
-							] = currentSavedOrder;
-							await this.plugin.saveSettings();
-
-							this.shouldAnimate = false;
-							await this.renderCanvas();
-							this.shouldAnimate = true;
-						}
-					})();
-				});
-			} else {
-				card.setAttribute("draggable", "false");
-				card.setCssProps({ cursor: "pointer" });
-			}
+						this.shouldAnimate = false;
+						await this.renderCanvas();
+						this.shouldAnimate = true;
+					}
+				})();
+			});
 		} else {
 			card.setAttribute("draggable", "false");
 			card.setCssProps({ cursor: "pointer" });
@@ -1319,8 +1180,13 @@ export class GalleryDashboardView extends ItemView {
 			.createDiv({ cls: "gallery-view-card-title" })
 			.setText(usableName);
 
+		// Context menu (right-click)
+		// After creating the grid, add the right-click context menu:
+		// ===== CARD CONTEXT MENU (right-click on individual card) =====
+		// ===== CARD CONTEXT MENU (right-click on individual card) =====
 		card.addEventListener("contextmenu", (e: MouseEvent) => {
 			e.preventDefault();
+			e.stopPropagation();
 			const fileMenu = new Menu();
 
 			fileMenu.addItem((menuItem) => {
@@ -1368,7 +1234,6 @@ export class GalleryDashboardView extends ItemView {
 				cls: "gallery-view-banner-img",
 			});
 
-			// Add YouTube class for cropping
 			if (
 				bannerUrl &&
 				(bannerUrl.includes("youtube.com") ||
@@ -1413,14 +1278,35 @@ export class GalleryDashboardView extends ItemView {
 						});
 						barTrack.createDiv({
 							attr: {
-								style: `width: ${metrics.percent}%; background: var(--interactive-accent); height: 100%; border-radius: 4px; transition: width 0.25s ease-in-out;`,
+								style: `width: ${metrics.percent}%; background: var(--interactive-accent); height: 100%; border-radius: 4px;`,
 							},
 						});
 					}
 				}
 			}
 
-			card.addEventListener("click", () => {
+			// Folder card click - supports middle-click for new tab
+			card.addEventListener("click", (e: MouseEvent) => {
+				if (e.button === 1) {
+					// Middle click - open in new tab
+					e.preventDefault();
+					void (async () => {
+						const leaf = this.app.workspace.getLeaf("tab");
+						await leaf.setViewState({
+							type: VIEW_TYPE_GALLERY,
+							active: true,
+							state: {
+								currentPath: item.path,
+								historyStack: [
+									...this.historyStack,
+									this.currentPath,
+								],
+							},
+						});
+					})();
+					return;
+				}
+				// Normal left click
 				void (async () => {
 					this.historyStack.push(this.currentPath);
 					this.currentPath = item.path;
@@ -1429,6 +1315,27 @@ export class GalleryDashboardView extends ItemView {
 					this.app.workspace.requestSaveLayout();
 					await this.renderCanvas();
 				})();
+			});
+
+			// Auxclick fallback for middle-click
+			card.addEventListener("auxclick", (e: MouseEvent) => {
+				if (e.button === 1) {
+					e.preventDefault();
+					void (async () => {
+						const leaf = this.app.workspace.getLeaf("tab");
+						await leaf.setViewState({
+							type: VIEW_TYPE_GALLERY,
+							active: true,
+							state: {
+								currentPath: item.path,
+								historyStack: [
+									...this.historyStack,
+									this.currentPath,
+								],
+							},
+						});
+					})();
+				}
 			});
 		} else if (item instanceof TFile) {
 			card.addClass("is-file-child");
@@ -1452,40 +1359,246 @@ export class GalleryDashboardView extends ItemView {
 				attr: { src: bannerUrl, style: `object-fit: ${imgFitRule};` },
 				cls: "gallery-view-banner-img",
 			});
+
+			// Type badge
+			const typeVal = frontmatter.type as string | undefined;
+			if (typeVal) {
+				const typeBadge = bannerContainer.createDiv({
+					cls: `gallery-view-type-badge type-${typeVal}`,
+				});
+				typeBadge.setText(typeVal);
+			}
+
 			const metaContainer = infoSection.createDiv({
 				cls: "gallery-view-card-meta",
 			});
 
 			if (isPdf) {
 				const pdfBadge = metaContainer.createDiv({
-					attr: {
-						style: "background-color: var(--text-error); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75em; font-weight: bold; text-transform: uppercase;",
-					},
+					cls: "gallery-view-card-pdf-badge",
 				});
-				pdfBadge.setText("PDF");
+				const pdfIcon = pdfBadge.createSpan({
+					cls: "gallery-view-pdf-icon",
+				});
+				pdfIcon.setText("📄");
+				pdfBadge.createSpan({ text: "PDF Document" });
 			} else {
-				this.plugin.settings.visibleProperties.forEach((propKey) => {
+				// Render tags as colorful pills
+				const tagsValue = frontmatter.tags;
+				if (tagsValue) {
+					const tagArray: string[] = Array.isArray(tagsValue)
+						? tagsValue
+						: String(tagsValue)
+								.split(",")
+								.map((t) => t.trim());
+
+					const tagsRow = metaContainer.createDiv({
+						cls: "gallery-view-tags-row",
+					});
+					tagArray.forEach((tag) => {
+						const colorIdx = hashString(tag) % 8;
+						const pill = tagsRow.createDiv({
+							cls: `gallery-view-tag-pill tag-color-${colorIdx}`,
+						});
+						pill.setText(`#${tag}`);
+					});
+				}
+
+				// ---- Properties with icons ----
+				const folderOverride =
+					this.plugin.settings.folderOverrides[this.currentPath];
+				const visibleProps =
+					folderOverride?.visibleProperties ||
+					this.plugin.settings.visibleProperties;
+
+				// Filter out tags and checkbox (handled separately)
+				const displayProps = visibleProps.filter(
+					(p) => p !== "checkbox" && p !== "tags",
+				);
+
+				if (displayProps.length > 0 || frontmatter.duration) {
+					const propsContainer = metaContainer.createDiv({
+						cls: "gallery-view-props-container",
+					});
+
+					// Author / Director / Developer
+					const authorKeys = [
+						"author",
+						"director",
+						"developer",
+						"writer",
+						"publisher",
+					];
+					const authorKey = authorKeys.find(
+						(k) => frontmatter[k] !== undefined,
+					);
+					if (authorKey && displayProps.includes(authorKey)) {
+						const authorRow = propsContainer.createDiv({
+							cls: "gallery-view-prop-row",
+						});
+						authorRow.createSpan({
+							cls: "gallery-view-prop-icon",
+							text: "✍️",
+						});
+						authorRow.createSpan({
+							cls: "gallery-view-prop-value gallery-view-prop-author",
+							text: String(frontmatter[authorKey]),
+						});
+					}
+
+					// Rating
+					const ratingKeys = ["rating", "score", "metacritic"];
+					const ratingKey = ratingKeys.find(
+						(k) => frontmatter[k] !== undefined,
+					);
+					if (ratingKey && displayProps.includes(ratingKey)) {
+						const ratingRow = propsContainer.createDiv({
+							cls: "gallery-view-prop-row",
+						});
+						ratingRow.createSpan({
+							cls: "gallery-view-prop-icon",
+							text: "⭐",
+						});
+						ratingRow.createSpan({
+							cls: "gallery-view-prop-value gallery-view-prop-rating",
+							text: String(frontmatter[ratingKey]),
+						});
+					}
+
+					// Year / Release Date
+					const yearKeys = ["year", "release_date", "created"];
+					const yearKey = yearKeys.find(
+						(k) => frontmatter[k] !== undefined,
+					);
+					if (yearKey && displayProps.includes(yearKey)) {
+						const yearRow = propsContainer.createDiv({
+							cls: "gallery-view-prop-row",
+						});
+						yearRow.createSpan({
+							cls: "gallery-view-prop-icon",
+							text: "📅",
+						});
+						const yearVal = String(frontmatter[yearKey]);
+						yearRow.createSpan({
+							cls: "gallery-view-prop-value gallery-view-prop-year",
+							text:
+								yearVal.length > 10
+									? yearVal.substring(0, 10)
+									: yearVal,
+						});
+					}
+
+					// Status
+					const statusKeys = ["status", "todo", "state"];
+					const statusKey = statusKeys.find(
+						(k) => frontmatter[k] !== undefined,
+					);
+					if (statusKey && displayProps.includes(statusKey)) {
+						const statusRow = propsContainer.createDiv({
+							cls: "gallery-view-prop-row",
+						});
+						statusRow.createSpan({
+							cls: "gallery-view-prop-icon",
+							text: "📌",
+						});
+						statusRow.createSpan({
+							cls: "gallery-view-prop-value gallery-view-prop-status",
+							text: String(frontmatter[statusKey]),
+						});
+					}
+
+					// Genres
+					const genreKeys = ["genres", "subjects", "category"];
+					const genreKey = genreKeys.find(
+						(k) => frontmatter[k] !== undefined,
+					);
+					if (genreKey && displayProps.includes(genreKey)) {
+						const genreRow = propsContainer.createDiv({
+							cls: "gallery-view-prop-row",
+						});
+						genreRow.createSpan({
+							cls: "gallery-view-prop-icon",
+							text: "🎯",
+						});
+						genreRow.createSpan({
+							cls: "gallery-view-prop-value gallery-view-prop-genres",
+							text: String(frontmatter[genreKey]),
+						});
+					}
+
+					// ISBN
 					if (
-						frontmatter[propKey] !== undefined &&
-						propKey !== "checkbox"
+						frontmatter.isbn !== undefined &&
+						displayProps.includes("isbn")
 					) {
-						const badge = metaContainer.createDiv({
-							cls: "gallery-view-property-badge",
+						const isbnRow = propsContainer.createDiv({
+							cls: "gallery-view-prop-row",
 						});
-						badge.setText(
-							`${propKey}: ${String(frontmatter[propKey])}`,
-						);
-					}
-					// Duration badge (for YouTube imports)
-					if (frontmatter.duration && !isPdf) {
-						const durationBadge = metaContainer.createDiv({
-							cls: "gallery-view-property-badge gallery-view-duration-badge",
+						isbnRow.createSpan({
+							cls: "gallery-view-prop-icon",
+							text: "📖",
 						});
-						durationBadge.setText(`⏱ ${frontmatter.duration}`);
+						isbnRow.createSpan({
+							cls: "gallery-view-prop-value gallery-view-prop-isbn",
+							text: String(frontmatter.isbn),
+						});
 					}
-				});
+
+					// Any remaining custom properties not matched above
+					const handledKeys = [
+						...authorKeys,
+						...ratingKeys,
+						...yearKeys,
+						...statusKeys,
+						...genreKeys,
+						"isbn",
+						"type",
+						"banner",
+						"duration",
+						"steam_app_id",
+						"tmdb_id",
+					];
+					displayProps.forEach((propKey) => {
+						if (
+							frontmatter[propKey] !== undefined &&
+							!handledKeys.includes(propKey)
+						) {
+							const customRow = propsContainer.createDiv({
+								cls: "gallery-view-prop-row",
+							});
+							customRow.createSpan({
+								cls: "gallery-view-prop-icon",
+								text: "🏷️",
+							});
+							customRow.createSpan({
+								cls: "gallery-view-prop-label",
+								text: `${propKey}: `,
+							});
+							customRow.createSpan({
+								cls: "gallery-view-prop-value",
+								text: String(frontmatter[propKey]),
+							});
+						}
+					});
+				}
+
+				// Duration badge for YouTube
+				if (frontmatter.duration && !isPdf) {
+					const durationRow = metaContainer.createDiv({
+						cls: "gallery-view-duration-row",
+					});
+					durationRow.createSpan({
+						cls: "gallery-view-duration-icon",
+						text: "⏱",
+					});
+					durationRow.createSpan({
+						cls: "gallery-view-duration-text",
+						text: String(frontmatter.duration),
+					});
+				}
 			}
 
+			// Enhanced checkbox
 			if (this.plugin.settings.showCheckboxes && !isPdf) {
 				const hasCheckboxProperty =
 					Object.prototype.hasOwnProperty.call(
@@ -1493,54 +1606,74 @@ export class GalleryDashboardView extends ItemView {
 						"checkbox",
 					);
 				if (hasCheckboxProperty) {
+					const isChecked = Boolean(frontmatter["checkbox"]);
 					const checkboxWrapper = infoSection.createDiv({
-						attr: {
-							style: "display: flex; align-items: center; margin-top: 2px; width: fit-content;",
-						},
+						cls: "gallery-view-checkbox-wrapper",
 					});
-					const checkbox = checkboxWrapper.createEl("input", {
-						type: "checkbox",
-						attr: {
-							style: "cursor: pointer; width: 16px; height: 16px; margin: 0;",
-						},
-					});
-					checkbox.checked = Boolean(frontmatter["checkbox"]);
 
-					checkbox.addEventListener("click", (e) => {
+					const customCheckbox = checkboxWrapper.createDiv({
+						cls: `gallery-view-custom-checkbox${isChecked ? " is-checked" : ""}`,
+					});
+					const checkboxLabel = checkboxWrapper.createSpan({
+						text: isChecked ? "Completed" : "Pending",
+						cls: "gallery-view-checkbox-label",
+					});
+
+					checkboxWrapper.addEventListener("click", (e) => {
 						void (async () => {
 							e.stopPropagation();
-							e.preventDefault(); // Add this to prevent any default behavior
-
-							const targetValue = checkbox.checked;
-
-							// Prevent the card animation from re-triggering
-							const card = checkbox.closest(
-								".gallery-view-card",
-							) as HTMLElement;
-							if (card) {
-								card.setCssProps({ animation: "none" });
-								void card.offsetHeight; // Force reflow
-								card.setCssProps({ animation: "" });
-							}
+							const newValue =
+								!customCheckbox.hasClass("is-checked");
 
 							await this.app.fileManager.processFrontMatter(
 								item,
 								(fm: Record<string, unknown>) => {
-									fm["checkbox"] = targetValue;
+									fm["checkbox"] = newValue;
 								},
 							);
 
-							// Don't re-render the entire canvas, just update the UI if needed
-							// The checkbox state is already visually updated by the click
+							if (newValue) {
+								customCheckbox.addClass("is-checked");
+								checkboxLabel.setText("Completed");
+							} else {
+								customCheckbox.removeClass("is-checked");
+								checkboxLabel.setText("Pending");
+							}
 						})();
 					});
 				}
 			}
 
-			card.addEventListener("click", () => {
+			// File card click - supports middle-click for new tab
+			card.addEventListener("click", (e: MouseEvent) => {
+				if (e.button === 1) {
+					// Middle click - open in new tab
+					e.preventDefault();
+					void this.app.workspace.getLeaf("tab").openFile(item);
+					return;
+				}
+				// Normal left click
 				void this.app.workspace.getLeaf(false).openFile(item);
+			});
+
+			// Auxclick fallback for middle-click
+			card.addEventListener("auxclick", (e: MouseEvent) => {
+				if (e.button === 1) {
+					e.preventDefault();
+					void this.app.workspace.getLeaf("tab").openFile(item);
+				}
 			});
 		}
 		return card;
+	}
+
+	private getPropertyClass(propKey: string): string {
+		const key = propKey.toLowerCase();
+		if (key === "status" || key === "todo") return "prop-type-status";
+		if (key === "author" || key === "director" || key === "developer")
+			return "prop-type-author";
+		if (key === "rating" || key === "score") return "prop-type-rating";
+		if (key === "year" || key === "release_date") return "prop-type-year";
+		return "";
 	}
 }

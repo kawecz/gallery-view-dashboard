@@ -119,9 +119,6 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 			}
 		});
 	}
-	private refresh(): void {
-		this.refresh();
-	}
 
 	display(): void {
 		const { containerEl } = this;
@@ -226,6 +223,57 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 					}),
 			);
 
+		new Setting(containerEl).setName("Import Options").setHeading();
+		new Setting(containerEl).setDesc(
+			"Choose which import options appear in the Add+ menu and right-click context menu.",
+		);
+
+		new Setting(containerEl)
+			.setName("🎬 YouTube Import")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.showYouTubeImport)
+					.onChange(async (value) => {
+						this.plugin.settings.showYouTubeImport = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName("📚 Book Import (Google Books)")
+			.setDesc("Requires Google Books API key to function.")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.showBookImport)
+					.onChange(async (value) => {
+						this.plugin.settings.showBookImport = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName("🎮 Game Import (Steam)")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.showGameImport)
+					.onChange(async (value) => {
+						this.plugin.settings.showGameImport = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName("🎬 Movie Import (TMDB)")
+			.setDesc("Requires TMDB API key to function.")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.showMovieImport)
+					.onChange(async (value) => {
+						this.plugin.settings.showMovieImport = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
 		new Setting(containerEl).setName("Asset Fallbacks").setHeading();
 
 		new Setting(containerEl)
@@ -264,21 +312,116 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		// NEW SETTING
+		new Setting(containerEl).setName("API Keys").setHeading();
+
+		// In settings.ts, find the API Keys section and update:
+
 		new Setting(containerEl)
 			.setName("YouTube Data API Key (optional)")
 			.setDesc(
 				"Enables fetching video duration when importing from YouTube. Get a free key from Google Cloud Console.",
 			)
-			.addText((text) =>
-				text
-					.setPlaceholder("AIza...")
+			.addText((text) => {
+				text.setPlaceholder("AIza...")
 					.setValue(this.plugin.settings.youtubeApiKey || "")
 					.onChange(async (value) => {
 						this.plugin.settings.youtubeApiKey = value.trim();
 						await this.plugin.saveSettings();
-					}),
-			);
+					});
+				// Mask the input
+				text.inputEl.type = "password";
+				// Add toggle visibility button
+				const toggleBtn = text.inputEl.parentElement?.createEl(
+					"button",
+					{
+						text: "👁",
+						attr: {
+							style: "position: absolute; right: 4px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 2px 4px; font-size: 0.8em;",
+							"aria-label": "Toggle visibility",
+						},
+					},
+				);
+				if (toggleBtn) {
+					toggleBtn.addEventListener("click", () => {
+						text.inputEl.type =
+							text.inputEl.type === "password"
+								? "text"
+								: "password";
+						toggleBtn.textContent =
+							text.inputEl.type === "password" ? "👁" : "🙈";
+					});
+				}
+			});
+
+		new Setting(containerEl)
+			.setName("TMDB API Key (optional)")
+			.setDesc(
+				"Required for importing movies. Get a free API key from https://www.themoviedb.org/settings/api",
+			)
+			.addText((text) => {
+				text.setPlaceholder("tmdb key...")
+					.setValue(this.plugin.settings.tmdbApiKey || "")
+					.onChange(async (value) => {
+						this.plugin.settings.tmdbApiKey = value.trim();
+						await this.plugin.saveSettings();
+					});
+				text.inputEl.type = "password";
+				const toggleBtn = text.inputEl.parentElement?.createEl(
+					"button",
+					{
+						text: "👁",
+						attr: {
+							style: "position: absolute; right: 4px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 2px 4px; font-size: 0.8em;",
+							"aria-label": "Toggle visibility",
+						},
+					},
+				);
+				if (toggleBtn) {
+					toggleBtn.addEventListener("click", () => {
+						text.inputEl.type =
+							text.inputEl.type === "password"
+								? "text"
+								: "password";
+						toggleBtn.textContent =
+							text.inputEl.type === "password" ? "👁" : "🙈";
+					});
+				}
+			});
+
+		new Setting(containerEl)
+			.setName("Google Books API Key (optional)")
+			.setDesc(
+				"Required for importing books. Get a free key from https://console.cloud.google.com/apis/library/books.googleapis.com",
+			)
+			.addText((text) => {
+				text.setPlaceholder("Google Books API key...")
+					.setValue(this.plugin.settings.googleBooksApiKey || "")
+					.onChange(async (value) => {
+						this.plugin.settings.googleBooksApiKey = value.trim();
+						await this.plugin.saveSettings();
+					});
+				text.inputEl.type = "password";
+				const toggleBtn = text.inputEl.parentElement?.createEl(
+					"button",
+					{
+						text: "👁",
+						attr: {
+							style: "position: absolute; right: 4px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 2px 4px; font-size: 0.8em;",
+							"aria-label": "Toggle visibility",
+						},
+					},
+				);
+				if (toggleBtn) {
+					toggleBtn.addEventListener("click", () => {
+						text.inputEl.type =
+							text.inputEl.type === "password"
+								? "text"
+								: "password";
+						toggleBtn.textContent =
+							text.inputEl.type === "password" ? "👁" : "🙈";
+					});
+				}
+			});
 
 		new Setting(containerEl)
 			.setName("Live Library Vault Tree Structure")
@@ -308,7 +451,6 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 			return;
 		}
 
-		// Collapse/Expand All buttons
 		const controlsRow = containerEl.createDiv({
 			cls: "gallery-tree-controls-row",
 		});
@@ -322,12 +464,10 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 			cls: "gallery-tree-collapse-btn",
 		});
 
-		// Tree wrapper
 		const treeWrapper = containerEl.createDiv({
 			cls: "gallery-tree-wrapper",
 		});
 
-		// Separate folders and PDFs
 		const folders = rootFolder.children.filter(
 			(child) => child instanceof TFolder,
 		) as TFolder[];
@@ -363,7 +503,6 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 			});
 		}
 
-		// Expand/Collapse All handlers
 		expandAllBtn.addEventListener("click", () => {
 			void (async () => {
 				const allContainers = treeWrapper.querySelectorAll<HTMLElement>(
@@ -380,7 +519,6 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 					el.textContent = "▾";
 				});
 
-				// Update all folder showSubs states
 				const updateShowSubs = (folder: TFolder) => {
 					if (this.plugin.settings.folderOverrides[folder.path]) {
 						this.plugin.settings.folderOverrides[
@@ -413,7 +551,6 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 					el.textContent = "▸";
 				});
 
-				// Update all folder showSubs states
 				const updateShowSubs = (folder: TFolder) => {
 					if (this.plugin.settings.folderOverrides[folder.path]) {
 						this.plugin.settings.folderOverrides[
@@ -435,7 +572,6 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 		containerEl: HTMLElement,
 		folder: TFolder,
 		level: number,
-		//_isRootLevel: boolean,
 	) {
 		const childPath = folder.path;
 
@@ -454,7 +590,6 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 				(item instanceof TFile && item.extension === "pdf"),
 		);
 
-		// Main row
 		const rowWrapper = containerEl.createDiv({
 			cls: "gallery-tree-row",
 		});
@@ -464,18 +599,15 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 			cls: "gallery-tree-flex-row",
 		});
 
-		// Indentation spacer
 		if (level > 0) {
 			const spacer = flexRow.createDiv({
 				cls: "gallery-tree-indent-line",
 			});
-			// Create visual indent guides
 			for (let i = 0; i < level; i++) {
 				spacer.createDiv({ cls: "gallery-tree-guide" });
 			}
 		}
 
-		// Toggle button or spacer
 		if (hasSubContent) {
 			const isExpanded = !!folderData?.showSubs;
 			const toggleBtn = flexRow.createEl("button", {
@@ -515,19 +647,16 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 			flexRow.createDiv({ cls: "gallery-tree-toggle-spacer" });
 		}
 
-		// Folder icon
 		flexRow.createSpan({
 			text: "📁",
 			cls: "gallery-tree-icon",
 		});
 
-		// Folder name
 		flexRow.createSpan({
 			text: folder.name,
 			cls: "gallery-tree-name",
 		});
 
-		// Banner input
 		const input = flexRow.createEl("input", {
 			type: "text",
 			placeholder: "Custom banner URL...",
@@ -545,7 +674,6 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 			})();
 		});
 
-		// Item count badge
 		const itemCount = folder.children.length;
 		const countBadge = flexRow.createSpan({
 			text: String(itemCount),
@@ -556,7 +684,6 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 			`${itemCount} item${itemCount === 1 ? "" : "s"}`,
 		);
 
-		// Nested children
 		if (hasSubContent) {
 			const nestedContainer = containerEl.createDiv({
 				cls: "gallery-tree-nested-container",
@@ -565,7 +692,6 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 				? "block"
 				: "none";
 
-			// Sort and separate children
 			const childFolders = folder.children.filter(
 				(child) => child instanceof TFolder,
 			) as TFolder[];
@@ -596,108 +722,65 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 					}),
 				)
 				.forEach((pdf) => {
-					const rowWrapper = nestedContainer.createDiv({
+					const pdfRowWrapper = nestedContainer.createDiv({
 						cls: "gallery-tree-row gallery-tree-pdf-row",
 					});
-					rowWrapper.setAttr("data-level", String(level + 1));
-					const flexRow = rowWrapper.createDiv({
+					pdfRowWrapper.setAttr("data-level", String(level + 1));
+					const pdfFlexRow = pdfRowWrapper.createDiv({
 						cls: "gallery-tree-flex-row",
 					});
-					// Indentation
 					if (level + 1 > 0) {
-						const spacer = flexRow.createDiv({
+						const spacer = pdfFlexRow.createDiv({
 							cls: "gallery-tree-indent-line",
 						});
 						for (let i = 0; i < level + 1; i++) {
 							spacer.createDiv({ cls: "gallery-tree-guide" });
 						}
 					}
-					flexRow.createDiv({ cls: "gallery-tree-toggle-spacer" });
-					flexRow.createSpan({
+					pdfFlexRow.createDiv({ cls: "gallery-tree-toggle-spacer" });
+					pdfFlexRow.createSpan({
 						text: "📄",
 						cls: "gallery-tree-icon gallery-tree-pdf-icon",
 					});
-					flexRow.createSpan({
+					pdfFlexRow.createSpan({
 						text: pdf.name,
 						cls: "gallery-tree-name gallery-tree-pdf-name",
 					});
-					flexRow.createSpan({
+					pdfFlexRow.createSpan({
 						text: "Uses default PDF banner",
 						cls: "gallery-tree-pdf-hint",
 					});
 				});
 		}
-	}
 
-	private displayPDFRow(containerEl: HTMLElement, pdf: TFile, level: number) {
-		const pdfPath = pdf.path;
-
-		if (!this.plugin.settings.folderOverrides[pdfPath]) {
-			this.plugin.settings.folderOverrides[pdfPath] = {
-				folderPath: pdfPath,
-				bannerUrl: "",
-				showSubs: false,
-			};
-		}
-
-		const pdfData = this.plugin.settings.folderOverrides[pdfPath];
-
-		const rowWrapper = containerEl.createDiv({
-			cls: "gallery-tree-row gallery-tree-pdf-row",
-		});
-		rowWrapper.setAttr("data-level", String(level));
-
-		const flexRow = rowWrapper.createDiv({
-			cls: "gallery-tree-flex-row",
-		});
-
-		// Indentation spacer
-		if (level > 0) {
-			const spacer = flexRow.createDiv({
-				cls: "gallery-tree-indent-line",
-			});
-			for (let i = 0; i < level; i++) {
-				spacer.createDiv({ cls: "gallery-tree-guide" });
-			}
-		}
-
-		// Spacer to align with folder toggle
-		flexRow.createDiv({ cls: "gallery-tree-toggle-spacer" });
-
-		// PDF icon
-		flexRow.createSpan({
-			text: "📄",
-			cls: "gallery-tree-icon gallery-tree-pdf-icon",
-		});
-
-		// PDF name
-		flexRow.createSpan({
-			text: pdf.name,
-			cls: "gallery-tree-name gallery-tree-pdf-name",
-		});
-
-		// Banner input
-		const input = flexRow.createEl("input", {
+		// Visible properties override
+		const propsInput = flexRow.createEl("input", {
 			type: "text",
-			placeholder: "Custom PDF banner URL...",
-			value: pdfData?.bannerUrl ?? "",
+			placeholder: "Visible properties (comma-separated)...",
+			value: folderData?.visibleProperties?.join(", ") ?? "",
 			cls: "gallery-tree-banner-input",
 		});
+		propsInput.setCssProps({
+			flex: "2",
+			minWidth: "100px",
+			fontSize: "0.75em",
+		});
 
-		input.addEventListener("input", () => {
+		propsInput.addEventListener("input", () => {
 			void (async () => {
-				if (this.plugin.settings.folderOverrides[pdfPath]) {
-					this.plugin.settings.folderOverrides[pdfPath]!.bannerUrl =
-						input.value;
+				if (this.plugin.settings.folderOverrides[childPath]) {
+					const val = propsInput.value;
+					this.plugin.settings.folderOverrides[
+						childPath
+					]!.visibleProperties = val
+						? val
+								.split(",")
+								.map((p) => p.trim())
+								.filter((p) => p.length > 0)
+						: undefined;
 					await this.plugin.saveSettings();
 				}
 			})();
-		});
-
-		// PDF badge
-		flexRow.createSpan({
-			text: "PDF",
-			cls: "gallery-tree-pdf-badge",
 		});
 	}
 }
