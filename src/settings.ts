@@ -223,10 +223,11 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		new Setting(containerEl).setName("Import Options").setHeading();
-		new Setting(containerEl).setDesc(
-			"Choose which import options appear in the Add+ menu and right-click context menu.",
-		);
+		new Setting(containerEl)
+			.setName("📥 Import Options")
+			.setDesc(
+				"Choose which import options appear in the Add+ menu and right-click context menu.",
+			);
 
 		new Setting(containerEl)
 			.setName("🎬 YouTube Import")
