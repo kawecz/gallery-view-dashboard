@@ -125,7 +125,7 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName("Gallery View Configurations")
+			.setName("Gallery View Configuration")
 			.setHeading();
 
 		const rootSetting = new Setting(containerEl)
@@ -223,7 +223,7 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		new Setting(containerEl).setName("Import Options").setHeading();
+		new Setting(containerEl).setName("Import Configuration").setHeading();
 		new Setting(containerEl).setDesc(
 			"Choose which import options appear in the Add+ menu and right-click context menu.",
 		);
@@ -520,10 +520,10 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 				});
 
 				const updateShowSubs = (folder: TFolder) => {
-					if (this.plugin.settings.folderOverrides[folder.path]) {
-						this.plugin.settings.folderOverrides[
-							folder.path
-						]!.showSubs = true;
+					const override =
+						this.plugin.settings.folderOverrides[folder.path];
+					if (override) {
+						override.showSubs = true;
 					}
 					folder.children
 						.filter((child) => child instanceof TFolder)
@@ -552,10 +552,42 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 				});
 
 				const updateShowSubs = (folder: TFolder) => {
-					if (this.plugin.settings.folderOverrides[folder.path]) {
-						this.plugin.settings.folderOverrides[
-							folder.path
-						]!.showSubs = false;
+					const override =
+						this.plugin.settings.folderOverrides[folder.path];
+					if (override) {
+						override.showSubs = false;
+					}
+					folder.children
+						.filter((child) => child instanceof TFolder)
+						.forEach((child) => updateShowSubs(child));
+				};
+				folders.forEach((folder) => updateShowSubs(folder));
+
+				await this.plugin.saveSettings();
+			})();
+		});
+
+		collapseAllBtn.addEventListener("click", () => {
+			void (async () => {
+				const allContainers = treeWrapper.querySelectorAll(
+					".gallery-tree-nested-container",
+				) as NodeListOf<HTMLElement>;
+				const allToggles = treeWrapper.querySelectorAll(
+					".gallery-tree-toggle-btn",
+				) as NodeListOf<HTMLElement>;
+
+				allContainers.forEach((el) => {
+					el.setCssProps({ display: "none" });
+				});
+				allToggles.forEach((el) => {
+					el.textContent = "▸";
+				});
+
+				const updateShowSubs = (folder: TFolder) => {
+					const override =
+						this.plugin.settings.folderOverrides[folder.path];
+					if (override) {
+						override.showSubs = true;
 					}
 					folder.children
 						.filter((child) => child instanceof TFolder)
@@ -622,11 +654,12 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 				void (async () => {
 					const nestedContainer =
 						rowWrapper.nextElementSibling as HTMLElement;
-					const nextState = !folderData?.showSubs;
-					if (this.plugin.settings.folderOverrides[childPath]) {
-						this.plugin.settings.folderOverrides[
-							childPath
-						]!.showSubs = nextState;
+					const override =
+						this.plugin.settings.folderOverrides[childPath];
+					const nextState = !override?.showSubs;
+
+					if (override) {
+						override.showSubs = nextState;
 					}
 					await this.plugin.saveSettings();
 
@@ -666,9 +699,10 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 
 		input.addEventListener("input", () => {
 			void (async () => {
-				if (this.plugin.settings.folderOverrides[childPath]) {
-					this.plugin.settings.folderOverrides[childPath]!.bannerUrl =
-						input.value;
+				const override =
+					this.plugin.settings.folderOverrides[childPath];
+				if (override) {
+					override.bannerUrl = input.value;
 					await this.plugin.saveSettings();
 				}
 			})();
@@ -768,11 +802,11 @@ export class GalleryViewSettingTab extends PluginSettingTab {
 
 		propsInput.addEventListener("input", () => {
 			void (async () => {
-				if (this.plugin.settings.folderOverrides[childPath]) {
+				const override =
+					this.plugin.settings.folderOverrides[childPath];
+				if (override) {
 					const val = propsInput.value;
-					this.plugin.settings.folderOverrides[
-						childPath
-					]!.visibleProperties = val
+					override.visibleProperties = val
 						? val
 								.split(",")
 								.map((p) => p.trim())

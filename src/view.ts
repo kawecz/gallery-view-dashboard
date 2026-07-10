@@ -403,6 +403,7 @@ export class GalleryDashboardView extends ItemView {
 		});
 
 		const actionGroupWrapper = centerGroup.createDiv({
+			cls: "gallery-view-add-btn-wrapper",
 			attr: { style: "position: relative;" },
 		});
 		const addDropdownToggleBtn = actionGroupWrapper.createEl("button", {
@@ -449,7 +450,7 @@ export class GalleryDashboardView extends ItemView {
 				popoverMenuEl,
 				"🎬 Import YouTube",
 				() => {
-					this.openYouTubeImport();
+					void this.openYouTubeImport();
 				},
 			);
 		}
@@ -465,7 +466,9 @@ export class GalleryDashboardView extends ItemView {
 					this.plugin.settings.tmdbApiKey || "",
 					(movie) => {
 						void this.plugin.createMovieNote(movie, currentPath);
-						window.setTimeout(() => void this.renderCanvas(), 300);
+						window.setTimeout(() => {
+							void this.renderCanvas();
+						}, 300);
 					},
 				).open();
 			});
@@ -482,7 +485,9 @@ export class GalleryDashboardView extends ItemView {
 					this.plugin.settings.googleBooksApiKey || "",
 					(book) => {
 						void this.plugin.createBookNote(book, currentPath);
-						window.setTimeout(() => void this.renderCanvas(), 300);
+						window.setTimeout(() => {
+							void this.renderCanvas();
+						}, 300);
 					},
 				).open();
 			});
@@ -493,7 +498,9 @@ export class GalleryDashboardView extends ItemView {
 				const currentPath = this.currentPath || "";
 				new SteamGameModal(this.app, (game) => {
 					void this.plugin.createGameNote(game, currentPath);
-					window.setTimeout(() => void this.renderCanvas(), 300);
+					window.setTimeout(() => {
+						void this.renderCanvas();
+					}, 300);
 				}).open();
 			});
 		}
@@ -625,7 +632,7 @@ export class GalleryDashboardView extends ItemView {
 				menu.addItem((item) => {
 					item.setTitle("🎬 Import YouTube")
 						.setIcon("youtube")
-						.onClick(() => this.openYouTubeImport());
+						.onClick(() => void this.openYouTubeImport());
 				});
 			}
 
@@ -646,10 +653,9 @@ export class GalleryDashboardView extends ItemView {
 										book,
 										currentPath,
 									);
-									window.setTimeout(
-										() => void this.renderCanvas(),
-										300,
-									);
+									window.setTimeout(() => {
+										void this.renderCanvas();
+									}, 300);
 								},
 							).open();
 						});
@@ -667,10 +673,9 @@ export class GalleryDashboardView extends ItemView {
 									game,
 									currentPath,
 								);
-								window.setTimeout(
-									() => void this.renderCanvas(),
-									300,
-								);
+								window.setTimeout(() => {
+									void this.renderCanvas();
+								}, 300);
 							}).open();
 						});
 				});
@@ -693,10 +698,9 @@ export class GalleryDashboardView extends ItemView {
 										movie,
 										currentPath,
 									);
-									window.setTimeout(
-										() => void this.renderCanvas(),
-										300,
-									);
+									window.setTimeout(() => {
+										void this.renderCanvas();
+									}, 300);
 								},
 							).open();
 						});
@@ -791,7 +795,6 @@ export class GalleryDashboardView extends ItemView {
 		const properties: PropertyEntry[] = [];
 
 		try {
-			// Check if the plugin folder exists
 			const configDir = this.app.vault.configDir;
 			const pluginFolder = this.app.vault.getAbstractFileByPath(
 				`${configDir}/plugins/folder-auto-properties`,
@@ -803,41 +806,37 @@ export class GalleryDashboardView extends ItemView {
 			);
 			if (!(dataFile instanceof TFile)) return properties;
 
-			// Use the cached read or read the file
-			this.app.vault.read(dataFile).then((content) => {
-				try {
-					const settings = JSON.parse(content) as {
-						rules?: {
-							folder: string;
-							properties: Record<string, unknown>;
-						}[];
-					};
+			const content = await this.app.vault.read(dataFile);
+			try {
+				const settings = JSON.parse(content) as {
+					rules?: {
+						folder: string;
+						properties: Record<string, unknown>;
+					}[];
+				};
 
-					if (settings.rules && Array.isArray(settings.rules)) {
-						// Find rules that match the target folder
-						for (const rule of settings.rules) {
-							// Check if targetFolder matches or is inside the rule's folder
-							if (
-								targetFolder === rule.folder ||
-								targetFolder.startsWith(rule.folder + "/")
-							) {
-								if (rule.properties) {
-									for (const [key, value] of Object.entries(
-										rule.properties,
-									)) {
-										properties.push({
-											key,
-											value: String(value),
-										});
-									}
+				if (settings.rules && Array.isArray(settings.rules)) {
+					for (const rule of settings.rules) {
+						if (
+							targetFolder === rule.folder ||
+							targetFolder.startsWith(rule.folder + "/")
+						) {
+							if (rule.properties) {
+								for (const [key, value] of Object.entries(
+									rule.properties,
+								)) {
+									properties.push({
+										key,
+										value: String(value),
+									});
 								}
 							}
 						}
 					}
-				} catch {
-					// Invalid JSON
 				}
-			});
+			} catch {
+				// Invalid JSON
+			}
 		} catch {
 			// Plugin not found or can't read
 		}
@@ -870,6 +869,7 @@ export class GalleryDashboardView extends ItemView {
 				const finalT = title || "YouTube " + Date.now();
 
 				// Pass only detected props — YouTubeConfirmModal will add banner/type/duration
+				// In openYouTubeImport:
 				new YouTubeConfirmModal(
 					this.app,
 					url,
@@ -883,9 +883,11 @@ export class GalleryDashboardView extends ItemView {
 							thumb,
 							currentPath,
 						);
-						window.setTimeout(() => void this.renderCanvas(), 500);
+						window.setTimeout(() => {
+							void this.renderCanvas();
+						}, 500);
 					},
-					detectedProps, // <-- just the detected props, no placeholders
+					detectedProps,
 					this.plugin.settings.youtubeApiKey || "",
 					this.plugin.settings.addPropertiesOnCreate,
 				).open();
@@ -962,11 +964,12 @@ export class GalleryDashboardView extends ItemView {
 			} else if (currentSortMethod === "checkbox") {
 				validItems.sort((a, b) => {
 					const getChecked = (item: TAbstractFile): number => {
-						if (!(item instanceof TFile)) return 2; // folders in middle
+						if (!(item instanceof TFile)) return 2;
 						const cache = this.app.metadataCache.getFileCache(item);
 						const fm = cache?.frontmatter;
-						if (!fm) return 2;
-						const checkboxVal = fm.checkbox;
+						if (!fm || typeof fm !== "object") return 2;
+						const checkboxVal = (fm as Record<string, unknown>)
+							.checkbox;
 						if (checkboxVal === undefined || checkboxVal === null)
 							return 2;
 						return checkboxVal === true ||
@@ -1384,7 +1387,7 @@ export class GalleryDashboardView extends ItemView {
 				pdfBadge.createSpan({ text: "PDF Document" });
 			} else {
 				// Render tags as colorful pills
-				const tagsValue = frontmatter.tags;
+				const tagsValue = (frontmatter as Record<string, unknown>).tags;
 				if (tagsValue) {
 					const tagArray: string[] = Array.isArray(tagsValue)
 						? tagsValue

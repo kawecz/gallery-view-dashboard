@@ -24,21 +24,14 @@ export async function searchTMDB(
 	}
 
 	const data = response.json as { results: TMDBMovie[] };
-	const results: MovieMetadata[] = [];
 
+	// Fetch full details for each search result to get genres and director
+	const results: MovieMetadata[] = [];
 	for (const movie of data.results.slice(0, 5)) {
-		results.push({
-			title: movie.title,
-			director: "", // Will be populated if we fetch details
-			year: movie.release_date ? movie.release_date.substring(0, 4) : "",
-			genres: movie.genres?.map((g) => g.name).join(", ") || "",
-			coverUrl: movie.poster_path
-				? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-				: "",
-			description: movie.overview || "",
-			rating: movie.vote_average?.toString() || "",
-			tmdbId: movie.id.toString(),
-		});
+		const details = await fetchMovieDetails(movie.id.toString(), apiKey);
+		if (details) {
+			results.push(details);
+		}
 	}
 
 	return results;
@@ -55,16 +48,19 @@ export async function fetchMovieDetails(
 
 	const movie = response.json as TMDBMovie & {
 		credits?: { crew?: { job: string; name: string }[] };
+		genres?: { id: number; name: string }[];
 	};
 
 	const director =
 		movie.credits?.crew?.find((c) => c.job === "Director")?.name || "";
 
+	const genres = movie.genres?.map((g) => g.name).join(", ") || "";
+
 	return {
 		title: movie.title,
 		director,
 		year: movie.release_date ? movie.release_date.substring(0, 4) : "",
-		genres: movie.genres?.map((g) => g.name).join(", ") || "",
+		genres,
 		coverUrl: movie.poster_path
 			? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
 			: "",

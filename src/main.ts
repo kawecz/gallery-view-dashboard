@@ -371,16 +371,18 @@ export default class GalleryViewPlugin extends Plugin {
 
 		// Add our book properties
 		existingFm.type = "book";
-		existingFm.title = book.title;
 		if (book.coverUrl && !existingFm.banner)
 			existingFm.banner = book.coverUrl;
+		if (book.title && !existingFm.title) existingFm.title = book.title;
 		if (book.author && !existingFm.author) existingFm.author = book.author;
 		if (book.isbn && !existingFm.isbn) existingFm.isbn = book.isbn;
 		if (book.year && !existingFm.year) existingFm.year = book.year;
 		if (book.publisher && !existingFm.publisher)
 			existingFm.publisher = book.publisher;
-		if (book.subjects && !existingFm.subjects)
-			existingFm.subjects = book.subjects;
+		if (book.subjects && !existingFm.genres)
+			existingFm.genres = book.subjects;
+		if (book.description && !existingFm.about)
+			existingFm.about = book.description;
 		if (this.settings.addPropertiesOnCreate && !existingFm.created) {
 			const dateStr = new Date().toISOString().split("T")[0];
 			if (dateStr) existingFm.created = dateStr;
@@ -390,7 +392,8 @@ export default class GalleryViewPlugin extends Plugin {
 			([key, value]) => `${key}: "${String(value).replace(/"/g, '\\"')}"`,
 		);
 
-		const fileContents = `---\n${fmLines.join("\n")}\n---\n\n# ${book.title}\n\n${book.description ? `> ${book.description}\n\n` : ""}By ${book.author}${book.year ? ` (${book.year})` : ""}\n`;
+		// Empty body
+		const fileContents = `---\n${fmLines.join("\n")}\n---\n`;
 		await this.app.vault.modify(file, fileContents);
 	}
 
@@ -447,9 +450,9 @@ export default class GalleryViewPlugin extends Plugin {
 		}
 
 		existingFm.type = "game";
-		existingFm.title = game.title;
 		if (game.coverUrl && !existingFm.banner)
 			existingFm.banner = game.coverUrl;
+		if (game.title && !existingFm.title) existingFm.title = game.title;
 		if (game.developer && !existingFm.developer)
 			existingFm.developer = game.developer;
 		if (game.publisher && !existingFm.publisher)
@@ -460,6 +463,8 @@ export default class GalleryViewPlugin extends Plugin {
 		if (game.rating && !existingFm.rating) existingFm.rating = game.rating;
 		if (game.steamAppId && !existingFm.steam_app_id)
 			existingFm.steam_app_id = game.steamAppId;
+		if (game.description && !existingFm.about)
+			existingFm.about = game.description;
 		if (this.settings.addPropertiesOnCreate && !existingFm.created) {
 			const dateStr = new Date().toISOString().split("T")[0];
 			if (dateStr) existingFm.created = dateStr;
@@ -469,7 +474,8 @@ export default class GalleryViewPlugin extends Plugin {
 			([key, value]) => `${key}: "${String(value).replace(/"/g, '\\"')}"`,
 		);
 
-		const fileContents = `---\n${fmLines.join("\n")}\n---\n\n# ${game.title}\n\n${game.description ? `> ${game.description}\n\n` : ""}Developer: ${game.developer}\nGenres: ${game.genres}${game.rating ? `\nMetacritic: ${game.rating}` : ""}\n`;
+		// Empty body
+		const fileContents = `---\n${fmLines.join("\n")}\n---\n`;
 		await this.app.vault.modify(file, fileContents);
 	}
 
@@ -525,9 +531,9 @@ export default class GalleryViewPlugin extends Plugin {
 		}
 
 		existingFm.type = "movie";
-		existingFm.title = movie.title;
 		if (movie.coverUrl && !existingFm.banner)
 			existingFm.banner = movie.coverUrl;
+		if (movie.title && !existingFm.title) existingFm.title = movie.title;
 		if (movie.director && !existingFm.director)
 			existingFm.director = movie.director;
 		if (movie.year && !existingFm.year) existingFm.year = movie.year;
@@ -537,6 +543,8 @@ export default class GalleryViewPlugin extends Plugin {
 			existingFm.rating = movie.rating;
 		if (movie.tmdbId && !existingFm.tmdb_id)
 			existingFm.tmdb_id = movie.tmdbId;
+		if (movie.description && !existingFm.about)
+			existingFm.about = movie.description;
 		if (this.settings.addPropertiesOnCreate && !existingFm.created) {
 			const dateStr = new Date().toISOString().split("T")[0];
 			if (dateStr) existingFm.created = dateStr;
@@ -546,7 +554,8 @@ export default class GalleryViewPlugin extends Plugin {
 			([key, value]) => `${key}: "${String(value).replace(/"/g, '\\"')}"`,
 		);
 
-		const fileContents = `---\n${fmLines.join("\n")}\n---\n\n# ${movie.title}${movie.year ? ` (${movie.year})` : ""}\n\n${movie.description ? `> ${movie.description}\n\n` : ""}Director: ${movie.director}\nGenres: ${movie.genres}${movie.rating ? `\nRating: ⭐ ${movie.rating}` : ""}\n`;
+		// Empty body
+		const fileContents = `---\n${fmLines.join("\n")}\n---\n`;
 		await this.app.vault.modify(file, fileContents);
 	}
 }
